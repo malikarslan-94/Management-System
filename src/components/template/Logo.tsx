@@ -23,16 +23,17 @@ const Logo = (props: LogoProps) => {
 
     return (
         <div
-            className={classNames('logo', className)}
+            className={classNames('logo flex items-center -my-3', className)}
             style={{
                 ...style,
                 ...{ width: logoWidth },
             }}
         >
             <img
-                className={imgClass}
-                src={`${LOGO_SRC_PATH}logo-${mode}-${type}.png`}
+                className={classNames('h-28 w-auto', imgClass)}
+                src="/img/logo/camp-logo.png"
                 alt={`${APP_NAME} logo`}
+                style={{ backgroundColor: 'transparent' }}
             />
         </div>
     )
