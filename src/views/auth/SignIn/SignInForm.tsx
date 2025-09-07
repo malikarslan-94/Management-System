@@ -18,13 +18,13 @@ interface SignInFormProps extends CommonProps {
 }
 
 type SignInFormSchema = {
-    userName: string
+    user: string
     password: string
     rememberMe: boolean
 }
 
 const validationSchema = Yup.object().shape({
-    userName: Yup.string().required('Please enter your user name'),
+    user: Yup.string().required('Please enter your user name'),
     password: Yup.string().required('Please enter your password'),
     rememberMe: Yup.bool(),
 })
@@ -45,10 +45,10 @@ const SignInForm = (props: SignInFormProps) => {
         values: SignInFormSchema,
         setSubmitting: (isSubmitting: boolean) => void,
     ) => {
-        const { userName, password } = values
-        setSubmitting(true)
+    const { user, password } = values
+    setSubmitting(true)
 
-        const result = await signIn({ userName, password })
+    const result = await signIn({ user, password })
 
         if (result?.status === 'failed') {
             setMessage(result.message)
@@ -66,8 +66,8 @@ const SignInForm = (props: SignInFormProps) => {
             )}
             <Formik
                 initialValues={{
-                    userName: 'admin',
-                    password: '123Qwe',
+                    user: 'admin',
+                    password: 'user123',
                     rememberMe: true,
                 }}
                 validationSchema={validationSchema}
@@ -85,15 +85,15 @@ const SignInForm = (props: SignInFormProps) => {
                             <FormItem
                                 label="User Name"
                                 invalid={
-                                    (errors.userName &&
-                                        touched.userName) as boolean
+                                    (errors.user &&
+                                        touched.user) as boolean
                                 }
-                                errorMessage={errors.userName}
+                                errorMessage={errors.user}
                             >
                                 <Field
                                     type="text"
                                     autoComplete="off"
-                                    name="userName"
+                                    name="user"
                                     placeholder="User Name"
                                     component={Input}
                                 />

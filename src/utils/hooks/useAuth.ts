@@ -24,7 +24,7 @@ function useAuth() {
     const { token, signedIn } = useAppSelector((state) => state.auth.session)
 
     const signIn = async (
-        values: SignInCredential,
+        values: { user: string; password: string },
     ): Promise<
         | {
               status: Status
@@ -33,20 +33,18 @@ function useAuth() {
         | undefined
     > => {
         try {
-            const resp = await apiSignIn(values)
+            const resp = await apiSignIn({ user: values.user, password: values.password })
             if (resp.data) {
                 const { token } = resp.data
                 dispatch(signInSuccess(token))
                 if (resp.data.user) {
                     dispatch(
-                        setUser(
-                            resp.data.user || {
-                                avatar: '',
-                                userName: 'Anonymous',
-                                authority: ['USER'],
-                                email: '',
-                            },
-                        ),
+                        setUser({
+                            avatar: '',
+                            user: resp.data.user.name || '',
+                            email: '',
+                            authority: resp.data.user.role ? [resp.data.user.role] : [],
+                        })
                     )
                 }
                 const redirectUrl = query.get(REDIRECT_URL_KEY)
@@ -60,31 +58,30 @@ function useAuth() {
                     message: '',
                 }
             }
-            // eslint-disable-next-line  @typescript-eslint/no-explicit-any
         } catch (errors: any) {
             return {
                 status: 'failed',
-                message: errors?.response?.data?.message || errors.toString(),
+                message: errors?.response?.data?.error || errors.toString(),
             }
         }
     }
 
     const signUp = async (values: SignUpCredential) => {
         try {
-            const resp = await apiSignUp(values)
+            // Map 'user' to 'name' for backend compatibility
+            const { user, ...rest } = values
+            const resp = await apiSignUp({ ...rest, name: user })
             if (resp.data) {
                 const { token } = resp.data
                 dispatch(signInSuccess(token))
                 if (resp.data.user) {
                     dispatch(
-                        setUser(
-                            resp.data.user || {
-                                avatar: '',
-                                userName: 'Anonymous',
-                                authority: ['USER'],
-                                email: '',
-                            },
-                        ),
+                        setUser({
+                            avatar: '',
+                            user: resp.data.user.name || 'Anonymous',
+                            authority: resp.data.user.role ? [resp.data.user.role] : ['USER'],
+                            email: '',
+                        })
                     )
                 }
                 const redirectUrl = query.get(REDIRECT_URL_KEY)
@@ -98,7 +95,6 @@ function useAuth() {
                     message: '',
                 }
             }
-            // eslint-disable-next-line  @typescript-eslint/no-explicit-any
         } catch (errors: any) {
             return {
                 status: 'failed',
@@ -112,7 +108,7 @@ function useAuth() {
         dispatch(
             setUser({
                 avatar: '',
-                userName: '',
+                user: '',
                 email: '',
                 authority: [],
             }),
@@ -121,7 +117,11 @@ function useAuth() {
     }
 
     const signOut = async () => {
-        await apiSignOut()
+        try {
+            await apiSignOut()
+        } catch (e) {
+            // Ignore API errors on sign out
+        }
         handleSignOut()
     }
 

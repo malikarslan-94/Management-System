@@ -31,7 +31,7 @@ const initialNavMode = () => {
     return themeConfig.navMode
 }
 
-export type ThemeState = {
+export interface ThemeState {
     themeColor: string
     direction: Direction
     mode: Mode
@@ -39,6 +39,7 @@ export type ThemeState = {
     panelExpand: boolean
     navMode: NavMode
     cardBordered: boolean
+    adminPanelOpen: boolean
     layout: {
         type: LayoutType
         sideNavCollapse: boolean
@@ -50,6 +51,7 @@ const initialState: ThemeState = {
     themeColor: themeConfig.themeColor,
     direction: themeConfig.direction,
     mode: themeConfig.mode,
+    adminPanelOpen: false,
     primaryColorLevel: themeConfig.primaryColorLevel,
     panelExpand: themeConfig.panelExpand,
     cardBordered: themeConfig.cardBordered,
@@ -114,7 +116,7 @@ export const themeSlice = createSlice({
                 ...{ type: action.payload },
             }
         },
-        setPreviousLayout: (state, action) => {
+        setPreviousLayout: (state, action: PayloadAction<LayoutType | undefined>) => {
             state.layout.previousType = action.payload
         },
         setSideNavCollapse: (state, action) => {
@@ -150,8 +152,13 @@ export const themeSlice = createSlice({
         setThemeColor: (state, action: PayloadAction<string>) => {
             state.themeColor = action.payload
         },
-        setThemeColorLevel: (state, action) => {
+        setThemeColorLevel(state, action) {
             state.primaryColorLevel = action.payload
+        },
+        toggleAdminPanel(state, action: PayloadAction<boolean | undefined>) {
+            state.adminPanelOpen = action.payload !== undefined 
+                ? action.payload 
+                : !state.adminPanelOpen
         },
     },
 })
@@ -166,6 +173,7 @@ export const {
     setThemeColor,
     setThemeColorLevel,
     setPreviousLayout,
+    toggleAdminPanel,
 } = themeSlice.actions
 
 export default themeSlice.reducer

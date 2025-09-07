@@ -18,7 +18,7 @@ const navigationConfig: NavigationTree[] = [
     },
     {
         key: 'locationCampManagement',
-        path: '',
+        path: '/locations-camps',
         title: 'Locations & Camps',
         translateKey: 'nav.locationCamp',
         icon: 'location', // update with proper icon in your icon set
@@ -27,11 +27,11 @@ const navigationConfig: NavigationTree[] = [
         subMenu: [],
     },
     {
-        key: 'roomManagement',
+        key: 'roomsManagement',
         path: '/rooms',
-        title: 'Rooms',
-        translateKey: 'nav.rooms',
-        icon: 'building', // update with proper icon
+        title: 'Room Management',
+        translateKey: 'nav.roomsManagement',
+        icon: 'building',
         type: NAV_ITEM_TYPE_ITEM,
         authority: [],
         subMenu: [],

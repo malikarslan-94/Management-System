@@ -3,6 +3,8 @@ const mongoose = require('mongoose')
 const cors = require('cors')
 const helmet = require('helmet')
 const morgan = require('morgan')
+const bcrypt = require('bcryptjs')
+const jwt = require('jsonwebtoken')
 require('dotenv').config()
 
 const app = express()
@@ -28,22 +30,130 @@ mongoose.connect(process.env.MONGODB_URI, {
     process.exit(1)
 })
 
-// Generic Schema for flexible collections
-const createGenericSchema = () => {
-    return new mongoose.Schema({}, { 
-        strict: false, 
-        timestamps: true,
-        collection: 'dynamic' // This will be overridden
-    })
+// Import models
+const Camp = require('./models/Camp')
+const Room = require('./models/Room')
+const User = require('./models/User')
+
+// Authentication Middleware
+const auth = async (req, res, next) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '')
+        if (!token) {
+            return res.status(401).json({ error: 'No token, authorization denied' })
+        }
+
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key')
+        const user = await User.findById(decoded.userId)
+        
+        if (!user) {
+            return res.status(401).json({ error: 'Token is not valid' })
+        }
+
+        req.user = user
+        next()
+    } catch (error) {
+        console.error('Authentication error:', error)
+        res.status(401).json({ error: 'Token is not valid' })
+    }
 }
 
-// Generic CRUD routes
+// Map collection names to models
+const modelMap = {
+    'camps': Camp,
+    'rooms': Room
+}
+
+// Auth Routes
+app.post('/api/sign-up', async (req, res) => {
+    try {
+        const { name, email, password } = req.body
+
+        // Check if user exists
+        let user = await User.findOne({ email })
+        if (user) {
+            return res.status(400).json({ error: 'User already exists' })
+        }
+
+        // Create new user
+        user = new User({
+            name,
+            email,
+            password,
+            role: 'admin' // First user will be admin
+        })
+
+        await user.save()
+
+        // Create JWT token
+        const token = jwt.sign(
+            { userId: user._id },
+            process.env.JWT_SECRET || 'your-secret-key',
+            { expiresIn: '24h' }
+        )
+
+        res.status(201).json({ 
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
+        })
+    } catch (error) {
+        console.error('Sign up error:', error)
+        res.status(500).json({ error: 'Server error' })
+    }
+})
+
+app.post('/api/sign-in', async (req, res) => {
+    try {
+        const { user, password } = req.body
+
+        // Check if user exists by name
+        const foundUser = await User.findOne({ name: user })
+        if (!foundUser) {
+            return res.status(400).json({ error: 'Invalid credentials' })
+        }
+
+        // Check password
+        const isMatch = await foundUser.comparePassword(password)
+        if (!isMatch) {
+            return res.status(400).json({ error: 'Invalid credentials' })
+        }
+
+        // Create JWT token
+        const token = jwt.sign(
+            { userId: foundUser._id },
+            process.env.JWT_SECRET || 'your-secret-key',
+            { expiresIn: '24h' }
+        )
+
+        res.json({ 
+            token,
+            user: {
+                id: foundUser._id,
+                name: foundUser.name,
+                role: foundUser.role
+            }
+        })
+    } catch (error) {
+        console.error('Sign in error:', error)
+        res.status(500).json({ error: 'Server error' })
+    }
+})
+
+// CRUD routes
 app.get('/api/:collection', async (req, res) => {
     try {
         const { collection } = req.params
         const { page = 1, limit = 10, sort, filter } = req.query
 
-        const Model = mongoose.model(collection, createGenericSchema(), collection)
+        const Model = modelMap[collection]
+        if (!Model) {
+            return res.status(404).json({ error: 'Collection not found' })
+        }
         
         const pageNum = parseInt(page)
         const limitNum = parseInt(limit)
@@ -116,7 +226,10 @@ app.get('/api/:collection/count', async (req, res) => {
 app.get('/api/:collection/:id', async (req, res) => {
     try {
         const { collection, id } = req.params
-        const Model = mongoose.model(collection, createGenericSchema(), collection)
+        const Model = modelMap[collection]
+        if (!Model) {
+            return res.status(404).json({ error: 'Collection not found' })
+        }
         
         const document = await Model.findById(id).lean()
         if (!document) {
@@ -136,7 +249,10 @@ app.get('/api/:collection/:id', async (req, res) => {
 app.post('/api/:collection', async (req, res) => {
     try {
         const { collection } = req.params
-        const Model = mongoose.model(collection, createGenericSchema(), collection)
+        const Model = modelMap[collection]
+        if (!Model) {
+            return res.status(404).json({ error: 'Collection not found' })
+        }
         
         const document = new Model(req.body)
         const savedDocument = await document.save()
@@ -154,7 +270,41 @@ app.post('/api/:collection', async (req, res) => {
 app.put('/api/:collection/:id', async (req, res) => {
     try {
         const { collection, id } = req.params
-        const Model = mongoose.model(collection, createGenericSchema(), collection)
+        const Model = modelMap[collection]
+        if (!Model) {
+            return res.status(404).json({ error: 'Collection not found' })
+        }
+        
+        const updatedDocument = await Model.findByIdAndUpdate(
+            id,
+            { ...req.body, updatedAt: new Date() },
+            { new: true, runValidators: true }
+        ).lean()
+
+        if (!updatedDocument) {
+            return res.status(404).json({ error: 'Document not found' })
+        }
+
+        res.json(updatedDocument)
+    } catch (error) {
+        console.error(`Error updating ${req.params.collection}:`, error)
+        if (error.name === 'CastError') {
+            return res.status(400).json({ error: 'Invalid ID format' })
+        }
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ error: error.message })
+        }
+        res.status(500).json({ error: error.message })
+    }
+})
+
+app.patch('/api/:collection/:id', async (req, res) => {
+    try {
+        const { collection, id } = req.params
+        const Model = modelMap[collection]
+        if (!Model) {
+            return res.status(404).json({ error: 'Collection not found' })
+        }
         
         const updatedDocument = await Model.findByIdAndUpdate(
             id,
@@ -182,7 +332,10 @@ app.put('/api/:collection/:id', async (req, res) => {
 app.delete('/api/:collection/:id', async (req, res) => {
     try {
         const { collection, id } = req.params
-        const Model = mongoose.model(collection, createGenericSchema(), collection)
+        const Model = modelMap[collection]
+        if (!Model) {
+            return res.status(404).json({ error: 'Collection not found' })
+        }
         
         const deletedDocument = await Model.findByIdAndDelete(id)
         if (!deletedDocument) {
