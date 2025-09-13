@@ -14,12 +14,15 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-mongoose.connect(process.env.VITE_MONGODB_URI, {
+mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
 .then(async () => {
   console.log('Connected to MongoDB Atlas');
+  console.log('Connected to DB:', mongoose.connection.name);
+  console.log('DB Host:', mongoose.connection.host);
+  console.log('DB Collections:', (await mongoose.connection.db.listCollections().toArray()).map(c => c.name));
   await seedInitialData();
 })
 .catch(err => console.error('MongoDB connection error:', err));
@@ -27,10 +30,22 @@ mongoose.connect(process.env.VITE_MONGODB_URI, {
 // Routes
 app.use('/api/camps', require('./routes/camps'));
 app.use('/api/rooms', require('./routes/rooms'));
+app.use('/api/users', require('./routes/users'));
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {
   res.json({ status: 'Server is running', database: 'Connected to MongoDB Atlas' });
+});
+
+// Test users route
+app.get('/api/test-users', async (req, res) => {
+  try {
+    const users = await User.find({}, '-password -__v');
+    res.json(users);
+  } catch (error) {
+    console.error('Test users error:', error);
+    res.status(500).json({ error: 'Failed to fetch test users' });
+  }
 });
 
 // Serve static assets in production

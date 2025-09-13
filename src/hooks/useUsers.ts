@@ -18,8 +18,16 @@ export const useUsers = (options: QueryOptions = {}) => {
             setLoading(true)
             setError(null)
             const response = await UserService.getUsers(options)
-            setUsers(response)
+            // The response is already the data we need
+            setUsers({
+                data: response.data || [],
+                total: response.total || 0,
+                page: response.page || 1,
+                limit: response.limit || 10,
+                totalPages: response.totalPages || 0
+            })
         } catch (err: any) {
+            console.error('Error in fetchUsers:', err)
             setError(err.message || 'Failed to fetch users')
         } finally {
             setLoading(false)

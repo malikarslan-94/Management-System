@@ -10,12 +10,11 @@ import { useRooms } from "../../hooks/useRooms";
 import Sidebar from './Sidebar';
 import CampsList from './CampsList';
 import RoomsList from './RoomsList';
+import UsersList from './UsersList';
 import CampForm from './CampForm';
 import RoomForm from './RoomForm';
 import DialogWrapper from './DialogWrapper';
 import LoaderOverlay from './LoaderOverlay';
-import UserForm from './UserForm';
-import { userApi } from '@/services/userApi';
 
 const getInitialFormData = (tab) => {
   if (tab === 'camps') {
@@ -29,14 +28,6 @@ const getInitialFormData = (tab) => {
       occupiedRooms: '',
       status: 'active',
       id: undefined,
-    };
-  }
-  if (tab === 'users') {
-    return {
-      name: '',
-      email: '',
-      password: '',
-      role: 'user',
     };
   }
   return {
@@ -72,10 +63,10 @@ const AdminDashboard = () => {
   } = useRooms();
   
   const [activeTab, setActiveTab] = useState('camps');
-  const [userMessage, setUserMessage] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(getInitialFormData('camps'));
+  const showAddButton = activeTab !== 'users';
   const [errors, setErrors] = useState({});
   const adminPanelOpen = useAppSelector((state) => state.theme.adminPanelOpen);
 
@@ -96,7 +87,6 @@ const AdminDashboard = () => {
   useEffect(() => {
     setFormData(getInitialFormData(activeTab));
     setErrors({});
-    setUserMessage('');
   }, [activeTab]);
 
   const validateField = useCallback((name, value) => {
@@ -167,7 +157,6 @@ const AdminDashboard = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setUserMessage('');
     console.log('Form submitted', { formData, isEditing, activeTab });
     // Validate form
     const validationErrors = {};
@@ -181,13 +170,6 @@ const AdminDashboard = () => {
       return;
     }
     try {
-      if (activeTab === 'users') {
-        await userApi.create(formData);
-        setUserMessage('User created successfully!');
-        setFormData(getInitialFormData('users'));
-        setErrors({});
-        return;
-      }
       if (isEditing) {
         if (activeTab === 'camps') {
           const campData = {
@@ -227,11 +209,7 @@ const AdminDashboard = () => {
       setFormData(getInitialFormData(activeTab));
       setErrors({});
     } catch (error) {
-      if (activeTab === 'users') {
-        setUserMessage(error?.response?.data?.error || 'Failed to create user');
-      } else {
-        alert(`Failed to ${isEditing ? 'update' : 'create'} ${activeTab.slice(0, -1)}. Please check the console for details.`);
-      }
+      alert(`Failed to ${isEditing ? 'update' : 'create'} ${activeTab.slice(0, -1)}. Please check the console for details.`);
     }
   };
 
@@ -293,7 +271,7 @@ const AdminDashboard = () => {
           </button> 
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-2xl font-bold capitalize">{activeTab}</h1>
-            {activeTab !== 'users' && (
+            {showAddButton && (
               <Button icon={<HiOutlinePlus />} variant="solid" onClick={handleAddNew}>
                 Add New {activeTab.slice(0, -1)}
               </Button>
@@ -301,24 +279,13 @@ const AdminDashboard = () => {
           </div>
           <div className="relative">
             <LoaderOverlay isLoading={isLoading || roomsLoading} />
-            {activeTab === 'camps' ? (
-              <CampsList camps={camps} onEdit={handleEdit} onDelete={handleDelete} />
-            ) : activeTab === 'rooms' ? (
-              <RoomsList rooms={rooms} camps={camps} onEdit={handleEdit} onDelete={handleDelete} />
-            ) : (
-              <div>
-                <UserForm onSubmit={async (userData) => {
-                  setUserMessage('');
-                  try {
-                    await userApi.create(userData);
-                    setUserMessage('User created successfully!');
-                  } catch (err) {
-                    setUserMessage(err?.response?.data?.error || 'Failed to create user');
-                  }
-                }} />
-                {userMessage && <div style={{ color: userMessage.includes('success') ? 'green' : 'red', marginTop: 12 }}>{userMessage}</div>}
-              </div>
-            )}
+              {activeTab === 'camps' ? (
+                <CampsList camps={camps} onEdit={handleEdit} onDelete={handleDelete} />
+              ) : activeTab === 'users' ? (
+                <UsersList />
+              ) : (
+                <RoomsList rooms={rooms} camps={camps} onEdit={handleEdit} onDelete={handleDelete} />
+              )}
           </div>
         </div>
       </div>

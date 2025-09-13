@@ -61,7 +61,8 @@ const auth = async (req, res, next) => {
 // Map collection names to models
 const modelMap = {
     'camps': Camp,
-    'rooms': Room
+    'rooms': Room,
+    'users': User
 }
 
 // Auth Routes
