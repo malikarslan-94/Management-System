@@ -45,25 +45,37 @@ const CollapsedItem = ({
 
 const DefaultItem = (props: DefaultItemProps) => {
     const { nav, onLinkClick, sideCollapsed, userAuthority } = props
+    const isDisabled = nav.disabled
+
+    const handleClick = (e: React.MouseEvent) => {
+        if (isDisabled) {
+            e.preventDefault()
+            return
+        }
+        onLinkClick?.({
+            key: nav.key,
+            title: nav.title,
+            path: nav.path,
+        })
+    }
 
     return (
         <AuthorityCheck userAuthority={userAuthority} authority={nav.authority}>
-            <MenuItem key={nav.key} eventKey={nav.key} className="mb-2">
+            <MenuItem 
+                key={nav.key} 
+                eventKey={nav.key} 
+                className={`mb-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                disabled={isDisabled}
+            >
                 <Link
-                    to={nav.path}
-                    className="flex items-center gap-2 h-full w-full"
+                    to={isDisabled ? '#' : nav.path}
+                    className={`flex items-center gap-2 h-full w-full ${isDisabled ? 'pointer-events-none' : ''}`}
                     target={nav.isExternalLink ? '_blank' : ''}
-                    onClick={() =>
-                        onLinkClick?.({
-                            key: nav.key,
-                            title: nav.title,
-                            path: nav.path,
-                        })
-                    }
+                    onClick={handleClick}
                 >
                     <VerticalMenuIcon icon={nav.icon} />
                     {!sideCollapsed && (
-                        <span>
+                        <span className={isDisabled ? 'opacity-50' : ''}>
                             <Trans
                                 i18nKey={nav.translateKey}
                                 defaults={nav.title}

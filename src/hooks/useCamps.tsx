@@ -1,15 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { campApi } from '@/services/api';
-import { toast } from '@/components/ui';
+import { toast, Notification } from '@/components/ui';
 
 interface Camp {
-  _id: string;
+  _id?: string;
   name: string;
   location: string;
-  description: string;
-  price: number;
+  description?: string;
+  price?: number;
   image?: string;
   rating?: number;
+  status?: 'active' | 'inactive';
+  totalRooms?: number;
+  occupiedRooms?: number;
 }
 
 export const useCamps = () => {
@@ -20,19 +23,16 @@ export const useCamps = () => {
   const fetchCamps = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Fetching camps...');
       const response = await campApi.getAll();
       console.log('API Response:', response);
-      // Ensure response.data is an array before setting it
-      const campsData = Array.isArray(response?.data) ? response.data : [];
-      console.log('Processed camps data:', campsData);
+
+      const campsData = Array.isArray(response?.data?.data) ? response.data.data : [];
       setCamps(campsData);
       setError(null);
     } catch (err) {
       console.error('Error fetching camps:', err);
       setError('Failed to fetch camps');
-      alert('Failed to load camps. Please try again.');
-      setCamps([]); // Ensure camps is always an array
+      setCamps([]);
     } finally {
       setLoading(false);
     }
@@ -40,25 +40,39 @@ export const useCamps = () => {
 
   const addCamp = async (campData: Omit<Camp, '_id'>) => {
     try {
-      console.log('Adding new camp with data:', campData);
-      const response = await campApi.create(campData);
-      console.log('Camp API response:', response);
-      
+      const campWithDefaults: Camp = {
+        name: campData.name || 'Unnamed Camp',
+        location: campData.location || 'Unknown Location',
+        description: campData.description || 'No description provided',
+        price: campData.price ?? 0,
+        status: campData.status || 'active',
+        totalRooms: campData.totalRooms ?? 0,
+        occupiedRooms: campData.occupiedRooms ?? 0,
+        image: campData.image,
+        rating: campData.rating,
+      };
+
+      const response = await campApi.create(campWithDefaults);
+
       if (!response || !response.data) {
         throw new Error('Invalid response from server');
       }
-      
-      setCamps(prev => {
-        const updatedCamps = [...prev, response.data];
-        console.log('Updated camps list:', updatedCamps);
-        return updatedCamps;
-      });
-      
-      alert('Camp added successfully');
+
+      setCamps(prev => [...prev, response.data]);
+      toast.push(
+        <Notification title="Success" type="success">
+          Camp added successfully!
+        </Notification>
+      );
+
       return response.data;
     } catch (err) {
       console.error('Error adding camp:', err);
-      alert('Failed to add camp');
+      toast.push(
+        <Notification title="Error" type="danger">
+          Failed to add camp
+        </Notification>
+      );
       throw err;
     }
   };
@@ -66,14 +80,24 @@ export const useCamps = () => {
   const updateCamp = async (id: string, campData: Partial<Camp>) => {
     try {
       const response = await campApi.update(id, campData);
-      setCamps(prevCamps => 
+      setCamps(prevCamps =>
         prevCamps.map(camp => (camp._id === id ? response.data : camp))
       );
-      alert('Camp updated successfully');
+
+      toast.push(
+        <Notification title="Success" type="success">
+          Camp updated successfully!
+        </Notification>
+      );
+
       return response.data;
     } catch (err) {
       console.error('Error updating camp:', err);
-      alert('Failed to update camp');
+      toast.push(
+        <Notification title="Error" type="danger">
+          Failed to update camp
+        </Notification>
+      );
       throw err;
     }
   };
@@ -82,17 +106,26 @@ export const useCamps = () => {
     try {
       await campApi.delete(id);
       setCamps(prev => prev.filter(camp => camp._id !== id));
-      alert('Camp deleted successfully');
+
+      toast.push(
+        <Notification title="Success" type="success">
+          Camp deleted successfully!
+        </Notification>
+      );
     } catch (err) {
       console.error('Error deleting camp:', err);
-      alert('Failed to delete camp');
+      toast.push(
+        <Notification title="Error" type="danger">
+          Failed to delete camp
+        </Notification>
+      );
       throw err;
     }
   };
 
   useEffect(() => {
     fetchCamps();
-  }, []);
+  }, [fetchCamps]);
 
   return {
     camps,
@@ -101,7 +134,7 @@ export const useCamps = () => {
     addCamp,
     updateCamp,
     deleteCamp,
-    refreshCamps: fetchCamps,
+    fetchCamps,
   };
 };
 

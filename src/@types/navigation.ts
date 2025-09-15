@@ -8,4 +8,5 @@ export interface NavigationTree {
     type: 'title' | 'collapse' | 'item'
     authority: string[]
     subMenu: NavigationTree[]
+    disabled?: boolean
 }
