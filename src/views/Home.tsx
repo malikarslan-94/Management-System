@@ -1,4 +1,4 @@
-import { Card, Button, Badge, Avatar } from '@/components/ui'
+import { Card, Button, Badge, Avatar, Spinner } from '@/components/ui'
 import { AdaptableCard, Chart } from '@/components/shared'
 import { 
     HiOutlineHome, 
@@ -15,55 +15,94 @@ import {
     HiOutlineClock
 } from 'react-icons/hi'
 import { Link } from 'react-router-dom'
+import { useCamps } from '@/hooks/useCamps'
+import { useRooms } from '@/hooks/useRooms'
+import { useEffect, useState } from 'react'
 
 const Home = () => {
-    // Dummy data for dashboard
+    // Hooks
+    const { camps, loading: campsLoading, error: campsError } = useCamps()
+    const { rooms, loading: roomsLoading, error: roomsError } = useRooms()
+
+    // Local loading & error
+    const [isLoading, setIsLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
+
+    useEffect(() => {
+        if (campsLoading || roomsLoading) {
+            setIsLoading(true)
+        } else {
+            setIsLoading(false)
+            setError(campsError || roomsError || null)
+        }
+    }, [campsLoading, roomsLoading, campsError, roomsError])
+
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <Spinner />
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="p-4 text-red-500">
+                Error loading data: {error}
+            </div>
+        )
+    }
+
+    // Stats calculation
+    const roomsArray = Array.isArray(rooms) ? rooms : []
+
     const stats = {
-        totalCamps: 12,
-        totalRooms: 240,
-        totalEmployees: 156,
-        occupancyRate: 78,
+        totalCamps: Array.isArray(camps) ? camps.length : 0,
+        totalRooms: roomsArray.length,
+        totalEmployees: 0,
+        occupancyRate: roomsArray.length
+            ? Math.round((roomsArray.filter(r => !r.isAvailable).length / roomsArray.length) * 100)
+            : 0,
         roomsUnderRepair: 8,
         lowInventoryItems: 5,
         activeMaintenance: 12
     }
 
+    // Occupancy chart data
     const occupancyData = {
         series: [stats.occupancyRate, 100 - stats.occupancyRate],
         options: {
-            chart: {
-                type: 'donut' as const,
-            },
+            chart: { type: 'donut' as const },
             labels: ['Occupied', 'Available'],
             colors: ['#10B981', '#E5E7EB'],
-            legend: {
-                position: 'bottom' as const
-            }
+            legend: { position: 'bottom' as const }
         }
     }
 
-    const upcomingCheckouts = [
-        { id: 1, name: 'John Smith', room: 'A-101', date: '2024-01-15', avatar: 'JS' },
-        { id: 2, name: 'Sarah Johnson', room: 'B-205', date: '2024-01-15', avatar: 'SJ' },
-        { id: 3, name: 'Mike Wilson', room: 'C-301', date: '2024-01-16', avatar: 'MW' },
-        { id: 4, name: 'Lisa Brown', room: 'A-102', date: '2024-01-16', avatar: 'LB' }
-    ]
+    // Upcoming checkouts (dummy for now)
+    const upcomingCheckouts = roomsArray
+    .filter(r => !r.isAvailable)
+    .slice(0, 4)
+    .map((room, idx) => ({
+        id: idx,
+        name: 'Occupied',
+        room: room.roomNumber || `Room ${room._id?.substring(0, 4) || ''}`,
+        date: 'N/A',
+        avatar: 'OC'
+    }))
 
+    // Recent assignments (dummy)
     const recentAssignments = [
         { id: 1, employee: 'David Lee', task: 'Room Cleaning', room: 'A-105', time: '2 hours ago' },
         { id: 2, employee: 'Emma Davis', task: 'Maintenance Check', room: 'B-201', time: '4 hours ago' },
         { id: 3, employee: 'Tom Wilson', task: 'Security Round', area: 'Block C', time: '6 hours ago' }
     ]
 
-    const StatCard = ({ title, value, icon: Icon, color = 'text-blue-600' }: {
-        title: string
-        value: number | string
-        icon: any
-        color?: string
-    }) => (
+    // Reusable components
+    const StatCard = ({ title, value, icon: Icon, color = 'text-blue-600' }: any) => (
         <AdaptableCard className="h-full border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 p-6">
             <div className="flex items-center space-x-4">
-                <div className={`p-3 rounded-full bg-white dark:bg-gray-700 shadow-sm`}>
+                <div className="p-3 rounded-full bg-white dark:bg-gray-700 shadow-sm">
                     <Icon className={`w-6 h-6 ${color}`} />
                 </div>
                 <div>
@@ -74,16 +113,8 @@ const Home = () => {
         </AdaptableCard>
     )
 
-    const QuickActionCard = ({ title, icon: Icon, onClick, color = 'bg-blue-600' }: {
-        title: string
-        icon: any
-        onClick: () => void
-        color?: string
-    }) => (
-        <Button 
-            className={`${color} hover:opacity-90 h-20 flex flex-col items-center justify-center space-y-2`}
-            onClick={onClick}
-        >
+    const QuickActionCard = ({ title, icon: Icon, onClick, color = 'bg-blue-600' }: any) => (
+        <Button className={`${color} hover:opacity-90 h-20 flex flex-col items-center justify-center space-y-2`} onClick={onClick}>
             <Icon className="w-6 h-6" />
             <span className="text-sm font-medium">{title}</span>
         </Button>
@@ -94,29 +125,16 @@ const Home = () => {
             {/* Header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">CampWise Dashboard</h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">Welcome back! Here's what's happening at your camps today.</p>
+                <p className="text-gray-600 dark:text-gray-400 mt-2">
+                    Welcome back! Here's what's happening at your camps today.
+                </p>
             </div>
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <StatCard 
-                    title="Total Camps" 
-                    value={stats.totalCamps} 
-                    icon={HiOutlineHome}
-                    color="text-blue-600"
-                />
-                <StatCard 
-                    title="Total Rooms" 
-                    value={stats.totalRooms} 
-                    icon={HiOutlineOfficeBuilding}
-                    color="text-green-600"
-                />
-                <StatCard 
-                    title="Total Employees" 
-                    value={stats.totalEmployees} 
-                    icon={HiOutlineUsers}
-                    color="text-purple-600"
-                />
+                <StatCard title="Total Camps" value={stats.totalCamps} icon={HiOutlineHome} color="text-blue-600" />
+                <StatCard title="Total Rooms" value={stats.totalRooms} icon={HiOutlineOfficeBuilding} color="text-green-600" />
+                <StatCard title="Total Employees" value={stats.totalEmployees} icon={HiOutlineUsers} color="text-purple-600" />
             </div>
 
             {/* Quick Actions */}
@@ -126,36 +144,16 @@ const Home = () => {
                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Common tasks and shortcuts for efficient camp management</p>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <QuickActionCard 
-                        title="Assign Room"
-                        icon={HiOutlineHome}
-                        onClick={() => console.log('Assign Room')}
-                        color="bg-blue-600"
-                    />
-                    <QuickActionCard 
-                        title="Add Employee"
-                        icon={HiOutlineUserAdd}
-                        onClick={() => console.log('Add Employee')}
-                        color="bg-green-600"
-                    />
-                    <QuickActionCard 
-                        title="Add Visitor"
-                        icon={HiOutlinePlus}
-                        onClick={() => console.log('Add Visitor')}
-                        color="bg-purple-600"
-                    />
-                    <QuickActionCard 
-                        title="Maintenance Request"
-                        icon={HiOutlineFire}
-                        onClick={() => console.log('Maintenance Request')}
-                        color="bg-orange-600"
-                    />
+                    <QuickActionCard title="Assign Room" icon={HiOutlineHome} onClick={() => console.log('Assign Room')} color="bg-blue-600" />
+                    <QuickActionCard title="Add Employee" icon={HiOutlineUserAdd} onClick={() => console.log('Add Employee')} color="bg-green-600" />
+                    <QuickActionCard title="Add Visitor" icon={HiOutlinePlus} onClick={() => console.log('Add Visitor')} color="bg-purple-600" />
+                    <QuickActionCard title="Maintenance Request" icon={HiOutlineFire} onClick={() => console.log('Maintenance Request')} color="bg-orange-600" />
                 </div>
             </div>
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Occupancy Rate Chart */}
+                {/* Occupancy Chart */}
                 <div className="lg:col-span-1">
                     <AdaptableCard className="h-full border border-gray-200 dark:border-gray-700">
                         <div className="mb-4">
@@ -163,11 +161,7 @@ const Home = () => {
                             <p className="text-sm text-gray-600 dark:text-gray-400">Overall camp occupancy</p>
                         </div>
                         <div className="flex items-center justify-center">
-                            <Chart 
-                                series={occupancyData.series}
-                                type="donut"
-                                height={250}
-                            />
+                            <Chart series={occupancyData.series} type="donut" height={250} />
                         </div>
                         <div className="text-center mt-4">
                             <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{stats.occupancyRate}%</p>
@@ -176,7 +170,7 @@ const Home = () => {
                     </AdaptableCard>
                 </div>
 
-                {/* Upcoming Check-outs */}
+                {/* Upcoming Checkouts */}
                 <div className="lg:col-span-2">
                     <AdaptableCard className="h-full border border-gray-200 dark:border-gray-700">
                         <div className="mb-4">
@@ -217,9 +211,7 @@ const Home = () => {
                             <p className="text-2xl font-bold text-red-600">{stats.roomsUnderRepair}</p>
                         </div>
                     </div>
-                    <Link to="/maintenance" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                        View Details →
-                    </Link>
+                    <Link to="/maintenance" className="text-blue-600 hover:text-blue-800 text-sm font-medium">View Details →</Link>
                 </AdaptableCard>
 
                 {/* Low Inventory Alerts */}
@@ -233,9 +225,7 @@ const Home = () => {
                             <p className="text-2xl font-bold text-yellow-600">{stats.lowInventoryItems}</p>
                         </div>
                     </div>
-                    <Link to="/inventory" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                        View Items →
-                    </Link>
+                    <Link to="/inventory" className="text-blue-600 hover:text-blue-800 text-sm font-medium">View Items →</Link>
                 </AdaptableCard>
 
                 {/* Active Maintenance Tasks */}
@@ -249,9 +239,7 @@ const Home = () => {
                             <p className="text-2xl font-bold text-blue-600">{stats.activeMaintenance}</p>
                         </div>
                     </div>
-                    <Link to="/maintenance/active" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                        View Tasks →
-                    </Link>
+                    <Link to="/maintenance/active" className="text-blue-600 hover:text-blue-800 text-sm font-medium">View Tasks →</Link>
                 </AdaptableCard>
             </div>
 
