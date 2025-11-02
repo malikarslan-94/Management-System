@@ -5,11 +5,15 @@ import { toggleAdminPanel } from '@/store/theme/themeSlice'
 import React, { useCallback, useEffect, useState } from 'react'
 import { HiArrowLeft, HiOutlinePlus } from 'react-icons/hi'
 import { useCamps } from '../../hooks/useCamps'
+import { useEmployees } from '../../hooks/useEmployees'
 import { useRooms } from '../../hooks/useRooms'
 
 import CampForm from './CampForm'
 import CampsList from './CampsList'
 import DialogWrapper from './DialogWrapper'
+import EmployeeDetail from './EmployeeDetail'
+import EmployeeForm from './EmployeeForm'
+import EmployeeList from './EmployeeList'
 import LoaderOverlay from './LoaderOverlay'
 import RoomForm from './RoomForm'
 import RoomsList from './RoomsList'
@@ -27,6 +31,21 @@ const getInitialFormData = (tab) => {
             totalRooms: '',
             occupiedRooms: '',
             status: 'active',
+            id: undefined,
+        }
+    }
+    if (tab === 'employees') {
+        return {
+            firstName: '',
+            lastName: '',
+            email: '',
+            phone: '',
+            department: '',
+            designation: '',
+            employeeType: 'Permanent',
+            campId: '',
+            currentRoomId: null,
+            status: 'Active',
             id: undefined,
         }
     }
@@ -64,15 +83,24 @@ const AdminDashboard = () => {
         deleteRoom,
     } = useRooms()
 
+    const {
+        employees,
+        loading: employeesLoading,
+        addEmployee,
+        updateEmployee,
+        deleteEmployee,
+    } = useEmployees()
+
     const [activeTab, setActiveTab] = useState('camps')
     const [isOpen, setIsOpen] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
     const [formData, setFormData] = useState(getInitialFormData('camps'))
+    const [selectedEmployee, setSelectedEmployee] = useState(null)
     const showAddButton = activeTab !== 'users'
     const [errors, setErrors] = useState({})
     const adminPanelOpen = useAppSelector((state) => state.theme.adminPanelOpen)
 
-    const isLoading = campsLoading || roomsLoading
+    const isLoading = campsLoading || roomsLoading || employeesLoading
 
     useEffect(() => {
         document.body.style.overflow = adminPanelOpen ? 'hidden' : 'auto'
@@ -82,10 +110,10 @@ const AdminDashboard = () => {
     }, [adminPanelOpen])
 
     useEffect(() => {
-        if (activeTab === 'rooms') {
+        if (activeTab === 'rooms' || activeTab === 'employees') {
             fetchCamps()
         }
-    }, [activeTab])
+    }, [activeTab, fetchCamps])
 
     useEffect(() => {
         setFormData(getInitialFormData(activeTab))
@@ -103,6 +131,22 @@ const AdminDashboard = () => {
                 case 'type':
                     if (!value?.toString().trim()) errs[name] = 'Required'
                     else delete errs[name]
+                    break
+                case 'firstName':
+                case 'lastName':
+                case 'email':
+                case 'phone':
+                case 'employeeType':
+                    if (activeTab === 'employees') {
+                        if (!value?.toString().trim()) errs[name] = 'Required'
+                        else if (
+                            name === 'email' &&
+                            value &&
+                            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+                        ) {
+                            errs[name] = 'Invalid email format'
+                        } else delete errs[name]
+                    }
                     break
                 case 'capacity':
                 case 'price':
@@ -135,10 +179,14 @@ const AdminDashboard = () => {
     )
 
     const validateForm = useCallback(() => {
-        const fields =
-            activeTab === 'camps'
-                ? ['name', 'location', 'totalRooms', 'occupiedRooms']
-                : ['camp', 'roomNumber', 'type', 'capacity', 'price'] // ✅ Validate required room fields
+        let fields = []
+        if (activeTab === 'camps') {
+            fields = ['name', 'location', 'totalRooms', 'occupiedRooms']
+        } else if (activeTab === 'employees') {
+            fields = ['firstName', 'lastName', 'email', 'phone', 'employeeType']
+        } else {
+            fields = ['camp', 'roomNumber', 'type', 'capacity', 'price']
+        }
         return fields.every((field) => validateField(field, formData[field]))
     }, [activeTab, formData, validateField])
 
@@ -195,6 +243,41 @@ const AdminDashboard = () => {
                         occupiedRooms: Number(formData.occupiedRooms) || 0,
                     }
                     await updateCamp(formData._id || formData.id, campData)
+                } else if (activeTab === 'employees') {
+                    // Extract ID from populated objects if they exist
+                    const campIdValue =
+                        typeof formData.campId === 'object' && formData.campId
+                            ? formData.campId._id || formData.campId
+                            : formData.campId?.toString().trim() || undefined
+                    const currentRoomIdValue =
+                        typeof formData.currentRoomId === 'object' &&
+                        formData.currentRoomId
+                            ? formData.currentRoomId._id ||
+                              formData.currentRoomId
+                            : formData.currentRoomId?.toString().trim() || null
+
+                    const employeeData = {
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        email: formData.email,
+                        phone: formData.phone,
+                        department: formData.department?.trim() || undefined,
+                        designation: formData.designation?.trim() || undefined,
+                        employeeType: formData.employeeType || 'Permanent',
+                        campId: campIdValue,
+                        currentRoomId: currentRoomIdValue,
+                        status: formData.status || 'Active',
+                    }
+                    // Remove undefined fields to avoid sending them
+                    Object.keys(employeeData).forEach(
+                        (key) =>
+                            employeeData[key] === undefined &&
+                            delete employeeData[key],
+                    )
+                    await updateEmployee(
+                        formData._id || formData.id,
+                        employeeData,
+                    )
                 } else {
                     const roomData = {
                         camp: formData.camp,
@@ -227,6 +310,38 @@ const AdminDashboard = () => {
                     }
                     await addCamp(campData)
                     await fetchCamps() // ✅ refresh list after adding
+                } else if (activeTab === 'employees') {
+                    // Extract ID from populated objects if they exist
+                    const campIdValue =
+                        typeof formData.campId === 'object' && formData.campId
+                            ? formData.campId._id || formData.campId
+                            : formData.campId?.toString().trim() || undefined
+                    const currentRoomIdValue =
+                        typeof formData.currentRoomId === 'object' &&
+                        formData.currentRoomId
+                            ? formData.currentRoomId._id ||
+                              formData.currentRoomId
+                            : formData.currentRoomId?.toString().trim() || null
+
+                    const employeeData = {
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        email: formData.email,
+                        phone: formData.phone,
+                        department: formData.department?.trim() || undefined,
+                        designation: formData.designation?.trim() || undefined,
+                        employeeType: formData.employeeType || 'Permanent',
+                        campId: campIdValue,
+                        currentRoomId: currentRoomIdValue,
+                        status: formData.status || 'Active',
+                    }
+                    // Remove undefined fields to avoid sending them
+                    Object.keys(employeeData).forEach(
+                        (key) =>
+                            employeeData[key] === undefined &&
+                            delete employeeData[key],
+                    )
+                    await addEmployee(employeeData)
                 } else {
                     const roomData = {
                         camp: formData.camp,
@@ -265,10 +380,16 @@ const AdminDashboard = () => {
     }
 
     const handleDelete = async (id) => {
-        const itemType = activeTab.slice(0, -1) // Remove 's' from 'camps' or 'rooms'
+        const itemType = activeTab.slice(0, -1) // Remove 's' from 'camps', 'rooms', or 'employees'
         if (
             !window.confirm(
-                `Are you sure you want to delete this ${itemType}? This action cannot be undone.`,
+                `Are you sure you want to ${
+                    activeTab === 'employees' ? 'deactivate' : 'delete'
+                } this ${itemType}? ${
+                    activeTab === 'employees'
+                        ? 'The employee will be marked as Inactive.'
+                        : 'This action cannot be undone.'
+                }`,
             )
         )
             return
@@ -276,13 +397,23 @@ const AdminDashboard = () => {
         try {
             if (activeTab === 'camps') {
                 await deleteCamp(id)
+            } else if (activeTab === 'employees') {
+                await deleteEmployee(id)
             } else {
                 await deleteRoom(id)
             }
         } catch (err) {
             console.error(`Error deleting ${itemType}:`, err)
-            alert(`Failed to delete ${itemType}. Please try again.`)
+            alert(
+                `Failed to ${
+                    activeTab === 'employees' ? 'deactivate' : 'delete'
+                } ${itemType}. Please try again.`,
+            )
         }
+    }
+
+    const handleViewEmployee = (employee) => {
+        setSelectedEmployee(employee)
     }
 
     const handleAddNew = () => {
@@ -336,12 +467,19 @@ const AdminDashboard = () => {
                         )}
                     </div>
                     <div className="relative">
-                        <LoaderOverlay isLoading={isLoading || roomsLoading} />
+                        <LoaderOverlay isLoading={isLoading} />
                         {activeTab === 'camps' ? (
                             <CampsList
                                 camps={camps}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
+                            />
+                        ) : activeTab === 'employees' ? (
+                            <EmployeeList
+                                employees={employees}
+                                onEdit={handleEdit}
+                                onDelete={handleDelete}
+                                onView={handleViewEmployee}
                             />
                         ) : activeTab === 'users' ? (
                             <UsersList />
@@ -375,6 +513,17 @@ const AdminDashboard = () => {
                         validateField={validateField}
                         getClass={getClass}
                     />
+                ) : activeTab === 'employees' ? (
+                    <EmployeeForm
+                        formData={formData}
+                        errors={errors}
+                        camps={camps}
+                        rooms={rooms}
+                        handleInputChange={handleInputChange}
+                        handleSelectChange={handleSelectChange}
+                        validateField={validateField}
+                        getClass={getClass}
+                    />
                 ) : (
                     <RoomForm
                         formData={formData}
@@ -389,6 +538,12 @@ const AdminDashboard = () => {
                     />
                 )}
             </DialogWrapper>
+            {selectedEmployee && (
+                <EmployeeDetail
+                    employee={selectedEmployee}
+                    onClose={() => setSelectedEmployee(null)}
+                />
+            )}
         </div>
     )
 }

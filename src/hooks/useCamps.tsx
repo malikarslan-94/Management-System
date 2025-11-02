@@ -26,9 +26,12 @@ export const useCamps = () => {
             const response = await campApi.getAll()
             console.log('API Response:', response)
 
-            const campsData = Array.isArray(response?.data?.data)
-                ? response?.data?.data
-                : []
+            // Camps route returns array directly, employees/rooms return wrapped format
+            const campsData = Array.isArray(response?.data)
+                ? response.data
+                : Array.isArray(response?.data?.data)
+                  ? response.data.data
+                  : []
             setCamps(campsData)
 
             setError(null)

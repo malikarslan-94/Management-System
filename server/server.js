@@ -18,34 +18,41 @@ app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI, {
-    dbName: process.env.DB_NAME
-})
-.then(() => {
-    console.log('✅ Connected to MongoDB Atlas')
-    console.log(`📊 Database: ${process.env.DB_NAME}`)
-})
-.catch((error) => {
-    console.error('❌ MongoDB connection error:', error)
-    process.exit(1)
-})
+mongoose
+    .connect(process.env.MONGODB_URI, {
+        dbName: process.env.DB_NAME,
+    })
+    .then(() => {
+        console.log('✅ Connected to MongoDB Atlas')
+        console.log(`📊 Database: ${process.env.DB_NAME}`)
+    })
+    .catch((error) => {
+        console.error('❌ MongoDB connection error:', error)
+        process.exit(1)
+    })
 
 // Import models
 const Camp = require('./models/Camp')
 const Room = require('./models/Room')
 const User = require('./models/User')
+const Employee = require('./models/Employee')
 
 // Authentication Middleware
 const auth = async (req, res, next) => {
     try {
         const token = req.header('Authorization')?.replace('Bearer ', '')
         if (!token) {
-            return res.status(401).json({ error: 'No token, authorization denied' })
+            return res
+                .status(401)
+                .json({ error: 'No token, authorization denied' })
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key')
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET || 'your-secret-key',
+        )
         const user = await User.findById(decoded.userId)
-        
+
         if (!user) {
             return res.status(401).json({ error: 'Token is not valid' })
         }
@@ -60,10 +67,27 @@ const auth = async (req, res, next) => {
 
 // Map collection names to models
 const modelMap = {
-    'camps': Camp,
-    'rooms': Room,
-    'users': User
+    camps: Camp,
+    rooms: Room,
+    users: User,
+    employees: Employee,
 }
+
+// Specific routes (register before generic handlers to ensure they take precedence)
+const campsRouter = require('./routes/camps')
+const roomsRouter = require('./routes/rooms')
+const usersRouter = require('./routes/users')
+const employeesRouter = require('./routes/employees')
+
+app.use('/api/camps', campsRouter)
+app.use('/api/rooms', roomsRouter)
+app.use('/api/users', usersRouter)
+app.use('/api/employees', employeesRouter)
+
+// Debug: Log route registration
+console.log(
+    '✅ Registered specific routes: /api/camps, /api/rooms, /api/users, /api/employees',
+)
 
 // Auth Routes
 app.post('/api/sign-up', async (req, res) => {
@@ -81,7 +105,7 @@ app.post('/api/sign-up', async (req, res) => {
             name,
             email,
             password,
-            role: 'admin' // First user will be admin
+            role: 'admin', // First user will be admin
         })
 
         await user.save()
@@ -90,17 +114,17 @@ app.post('/api/sign-up', async (req, res) => {
         const token = jwt.sign(
             { userId: user._id },
             process.env.JWT_SECRET || 'your-secret-key',
-            { expiresIn: '24h' }
+            { expiresIn: '24h' },
         )
 
-        res.status(201).json({ 
+        res.status(201).json({
             token,
             user: {
                 id: user._id,
                 name: user.name,
                 email: user.email,
-                role: user.role
-            }
+                role: user.role,
+            },
         })
     } catch (error) {
         console.error('Sign up error:', error)
@@ -128,16 +152,16 @@ app.post('/api/sign-in', async (req, res) => {
         const token = jwt.sign(
             { userId: foundUser._id },
             process.env.JWT_SECRET || 'your-secret-key',
-            { expiresIn: '24h' }
+            { expiresIn: '24h' },
         )
 
-        res.json({ 
+        res.json({
             token,
             user: {
                 id: foundUser._id,
                 name: foundUser.name,
-                role: foundUser.role
-            }
+                role: foundUser.role,
+            },
         })
     } catch (error) {
         console.error('Sign in error:', error)
@@ -155,7 +179,7 @@ app.get('/api/:collection', async (req, res) => {
         if (!Model) {
             return res.status(404).json({ error: 'Collection not found' })
         }
-        
+
         const pageNum = parseInt(page)
         const limitNum = parseInt(limit)
         const skip = (pageNum - 1) * limitNum
@@ -192,7 +216,7 @@ app.get('/api/:collection', async (req, res) => {
             total,
             page: pageNum,
             limit: limitNum,
-            totalPages
+            totalPages,
         })
     } catch (error) {
         console.error(`Error fetching ${req.params.collection}:`, error)
@@ -205,8 +229,12 @@ app.get('/api/:collection/count', async (req, res) => {
         const { collection } = req.params
         const { filter } = req.query
 
-        const Model = mongoose.model(collection, createGenericSchema(), collection)
-        
+        const Model = mongoose.model(
+            collection,
+            createGenericSchema(),
+            collection,
+        )
+
         let query = {}
         if (filter) {
             try {
@@ -231,7 +259,7 @@ app.get('/api/:collection/:id', async (req, res) => {
         if (!Model) {
             return res.status(404).json({ error: 'Collection not found' })
         }
-        
+
         const document = await Model.findById(id).lean()
         if (!document) {
             return res.status(404).json({ error: 'Document not found' })
@@ -250,14 +278,28 @@ app.get('/api/:collection/:id', async (req, res) => {
 app.post('/api/:collection', async (req, res) => {
     try {
         const { collection } = req.params
+
+        // Skip generic handler for routes with specific handlers
+        const specificRoutes = ['camps', 'rooms', 'users', 'employees']
+        if (specificRoutes.includes(collection)) {
+            // This should not happen if routes are registered correctly
+            console.warn(
+                `⚠️  POST /api/${collection} hit generic handler - specific route should have handled this`,
+            )
+            return res.status(404).json({
+                error: 'Route handled by specific handler',
+                message: `Please use the specific /api/${collection} route handler`,
+            })
+        }
+
         const Model = modelMap[collection]
         if (!Model) {
             return res.status(404).json({ error: 'Collection not found' })
         }
-        
+
         const document = new Model(req.body)
         const savedDocument = await document.save()
-        
+
         res.status(201).json(savedDocument.toObject())
     } catch (error) {
         console.error(`Error creating ${req.params.collection}:`, error)
@@ -275,11 +317,11 @@ app.put('/api/:collection/:id', async (req, res) => {
         if (!Model) {
             return res.status(404).json({ error: 'Collection not found' })
         }
-        
+
         const updatedDocument = await Model.findByIdAndUpdate(
             id,
             { ...req.body, updatedAt: new Date() },
-            { new: true, runValidators: true }
+            { new: true, runValidators: true },
         ).lean()
 
         if (!updatedDocument) {
@@ -306,11 +348,11 @@ app.patch('/api/:collection/:id', async (req, res) => {
         if (!Model) {
             return res.status(404).json({ error: 'Collection not found' })
         }
-        
+
         const updatedDocument = await Model.findByIdAndUpdate(
             id,
             { ...req.body, updatedAt: new Date() },
-            { new: true, runValidators: true }
+            { new: true, runValidators: true },
         ).lean()
 
         if (!updatedDocument) {
@@ -337,7 +379,7 @@ app.delete('/api/:collection/:id', async (req, res) => {
         if (!Model) {
             return res.status(404).json({ error: 'Collection not found' })
         }
-        
+
         const deletedDocument = await Model.findByIdAndDelete(id)
         if (!deletedDocument) {
             return res.status(404).json({ error: 'Document not found' })
@@ -357,12 +399,19 @@ app.delete('/api/:collection', async (req, res) => {
     try {
         const { collection } = req.params
         const { filter } = req.body
-        const Model = mongoose.model(collection, createGenericSchema(), collection)
-        
+        const Model = mongoose.model(
+            collection,
+            createGenericSchema(),
+            collection,
+        )
+
         const result = await Model.deleteMany(filter || {})
         res.json({ deletedCount: result.deletedCount })
     } catch (error) {
-        console.error(`Error deleting multiple ${req.params.collection}:`, error)
+        console.error(
+            `Error deleting multiple ${req.params.collection}:`,
+            error,
+        )
         res.status(500).json({ error: error.message })
     }
 })
@@ -371,8 +420,12 @@ app.post('/api/:collection/aggregate', async (req, res) => {
     try {
         const { collection } = req.params
         const { pipeline } = req.body
-        const Model = mongoose.model(collection, createGenericSchema(), collection)
-        
+        const Model = mongoose.model(
+            collection,
+            createGenericSchema(),
+            collection,
+        )
+
         const result = await Model.aggregate(pipeline)
         res.json(result)
     } catch (error) {
@@ -383,10 +436,11 @@ app.post('/api/:collection/aggregate', async (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'OK', 
+    res.json({
+        status: 'OK',
         timestamp: new Date().toISOString(),
-        database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+        database:
+            mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     })
 })
 
