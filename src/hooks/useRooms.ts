@@ -102,10 +102,10 @@ export const useRooms = (campId?: string) => {
         rooms,
         loading,
         error,
+        fetchRooms,
         addRoom,
         updateRoom,
         deleteRoom,
-        refreshRooms: fetchRooms,
     }
 }
 
