@@ -36,6 +36,7 @@ const Camp = require('./models/Camp')
 const Room = require('./models/Room')
 const User = require('./models/User')
 const Employee = require('./models/Employee')
+const RoomAssignment = require('./models/RoomAssignment')
 
 // Authentication Middleware
 const auth = async (req, res, next) => {
@@ -71,6 +72,7 @@ const modelMap = {
     rooms: Room,
     users: User,
     employees: Employee,
+    assignments: RoomAssignment,
 }
 
 // Specific routes (register before generic handlers to ensure they take precedence)
@@ -78,15 +80,17 @@ const campsRouter = require('./routes/camps')
 const roomsRouter = require('./routes/rooms')
 const usersRouter = require('./routes/users')
 const employeesRouter = require('./routes/employees')
+const assignmentsRouter = require('./routes/assignments')
 
 app.use('/api/camps', campsRouter)
 app.use('/api/rooms', roomsRouter)
 app.use('/api/users', usersRouter)
 app.use('/api/employees', employeesRouter)
+app.use('/api/assignments', assignmentsRouter)
 
 // Debug: Log route registration
 console.log(
-    '✅ Registered specific routes: /api/camps, /api/rooms, /api/users, /api/employees',
+    '✅ Registered specific routes: /api/camps, /api/rooms, /api/users, /api/employees, /api/assignments',
 )
 
 // Auth Routes

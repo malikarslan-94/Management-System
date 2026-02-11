@@ -1,0 +1,148 @@
+MongoDB Connection String for MongoDB Compass
+==============================================
+
+⚠️  TROUBLESHOOTING: If you get "querySrv ENOTFOUND" error, see solutions below.
+
+Based on your configuration, here are the connection strings you can use:
+
+1. FULL CONNECTION STRING (SRV - Recommended if DNS works):
+   mongodb+srv://malikarslan:malikarslan@cluster0.2sxwz.mongodb.net/camp_management?retryWrites=true&w=majority
+
+2. STANDARD CONNECTION STRING (Use if SRV fails):
+   mongodb://malikarslan:malikarslan@cluster0-shard-00-00.2sxwz.mongodb.net:27017,cluster0-shard-00-01.2sxwz.mongodb.net:27017,cluster0-shard-00-02.2sxwz.mongodb.net:27017/camp_management?ssl=true&replicaSet=atlas-xxxxx-shard-0&authSource=admin&retryWrites=true&w=majority
+
+   ⚠️  Note: You need to get the actual replica set name from MongoDB Atlas
+
+3. CONNECTION STRING WITHOUT DATABASE (will show all databases):
+   mongodb+srv://malikarslan:malikarslan@cluster0.2sxwz.mongodb.net/?retryWrites=true&w=majority
+
+==============================================
+HOW TO USE IN MONGODB COMPASS:
+==============================================
+
+1. Open MongoDB Compass
+2. Click "New Connection" or paste the connection string in the connection field
+3. Use this connection string:
+   
+   mongodb+srv://malikarslan:malikarslan@cluster0.2sxwz.mongodb.net/camp_management?retryWrites=true&w=majority
+
+4. Click "Connect"
+
+==============================================
+CONNECTION DETAILS:
+==============================================
+
+- Username: malikarslan
+- Password: malikarslan
+- Cluster: cluster0.2sxwz.mongodb.net
+- Database Name: camp_management
+- Connection Type: MongoDB Atlas (cloud)
+
+==============================================
+SECURITY NOTE:
+==============================================
+
+⚠️  WARNING: This connection string contains your credentials in plain text.
+Make sure to:
+- Never commit this file to version control
+- Use environment variables in production
+- Consider using MongoDB Atlas IP whitelist for additional security
+
+==============================================
+ALTERNATIVE: CONNECT USING CONNECTION FIELDS
+==============================================
+
+If you prefer to enter details separately in MongoDB Compass:
+
+1. Connection Type: SRV Connection
+2. Hostname: cluster0.2sxwz.mongodb.net
+3. Authentication: Username/Password
+4. Username: malikarslan
+5. Password: malikarslan
+6. Authentication Database: admin (or leave default)
+7. Additional Connection Options:
+   - retryWrites=true
+   - w=majority
+
+Then select the database: camp_management
+
+==============================================
+TROUBLESHOOTING: "querySrv ENOTFOUND" ERROR
+==============================================
+
+If you're getting: "querySrv ENOTFOUND _mongodb._tcp.cluster0.2sxwz.mongodb.net"
+
+SOLUTION 1: Get the correct connection string from MongoDB Atlas
+------------------------------------------------------------------
+1. Log in to MongoDB Atlas: https://cloud.mongodb.com
+2. Go to your cluster
+3. Click "Connect" button
+4. Select "Connect using MongoDB Compass"
+5. Copy the connection string provided (it will be the correct one)
+6. Replace <password> with your actual password: malikarslan
+7. Use that connection string in MongoDB Compass
+
+SOLUTION 2: Verify Cluster Exists
+----------------------------------
+1. Check if the cluster "cluster0.2sxwz" still exists in your Atlas account
+2. The cluster might have been deleted or renamed
+3. Verify the cluster name in MongoDB Atlas dashboard
+
+SOLUTION 3: Use Standard Connection (Non-SRV)
+-----------------------------------------------
+If SRV connection fails, try using standard connection format:
+
+1. In MongoDB Compass, click "Fill in connection fields individually"
+2. Connection Type: Standard Connection (not SRV)
+3. Hostname: cluster0-shard-00-00.2sxwz.mongodb.net
+4. Port: 27017
+5. Authentication: Username/Password
+6. Username: malikarslan
+7. Password: malikarslan
+8. Authentication Database: admin
+9. SSL/TLS: Enabled
+10. Additional Options:
+    - retryWrites=true
+    - w=majority
+
+Note: You may need to add multiple hosts if it's a replica set:
+- cluster0-shard-00-00.2sxwz.mongodb.net:27017
+- cluster0-shard-00-01.2sxwz.mongodb.net:27017
+- cluster0-shard-00-02.2sxwz.mongodb.net:27017
+
+SOLUTION 4: Check Network/DNS
+------------------------------
+1. Check your internet connection
+2. Try using a different network (mobile hotspot)
+3. Check if your firewall is blocking DNS queries
+4. Try using a VPN if DNS is restricted in your region
+
+SOLUTION 5: Verify IP Whitelist
+--------------------------------
+1. Go to MongoDB Atlas → Network Access
+2. Make sure your current IP address is whitelisted
+3. Or add 0.0.0.0/0 for development (not recommended for production)
+
+SOLUTION 6: Check Credentials
+-----------------------------
+1. Verify username and password are correct
+2. Check if the user exists in MongoDB Atlas → Database Access
+3. Make sure the user has proper permissions
+
+==============================================
+RECOMMENDED: Get Connection String from Atlas
+==============================================
+
+The BEST way to get the correct connection string:
+
+1. Go to: https://cloud.mongodb.com
+2. Log in to your account
+3. Select your cluster
+4. Click "Connect" button
+5. Choose "Connect using MongoDB Compass"
+6. Copy the connection string shown
+7. Replace <password> with: malikarslan
+8. Use that exact string in MongoDB Compass
+
+This ensures you have the correct, up-to-date connection string.
+

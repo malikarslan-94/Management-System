@@ -31,6 +31,12 @@ export const protectedRoutes = [
         authority: [],
     },
     {
+        key: 'roomAssignments',
+        path: '/room-assignments',
+        component: lazy(() => import('@/views/admin/RoomAssignments')),
+        authority: [],
+    },
+    {
         key: 'employeeManagement',
         path: '/employees',
         component: lazy(() => import('@/views/admin/EmployeeManagement')),

@@ -1,5 +1,5 @@
-import { useState, useEffect, ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, ReactNode, useMemo } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { 
   HiOutlineAdjustments, 
   HiOutlineArrowSmRight, 
@@ -7,18 +7,35 @@ import {
   HiOutlineHome,
   HiOutlineOfficeBuilding,
   HiOutlineUserGroup,
-  HiOutlineClock
+  HiOutlineClock,
+  HiOutlineUserAdd,
+  HiOutlineClipboardCheck
 } from 'react-icons/hi'
 import { 
   getRoomCategories, 
   type RoomCategory,
   type RoomFeature 
 } from '@/services/RoomCategoryService'
+import { 
+  getRooms, 
+  updateRoom,
+  type Room 
+} from '@/services/RoomService'
+import { 
+  assignRoom,
+  type AssignRoomPayload 
+} from '@/services/RoomAssignmentService'
+import { useEmployees } from '@/hooks/useEmployees'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Tabs from '@/components/ui/Tabs'
 import Tooltip from '@/components/ui/Tooltip'
+import Dialog from '@/components/ui/Dialog'
+import Input from '@/components/ui/Input'
+import { FormContainer, FormItem } from '@/components/ui'
+import { Select } from '@/components/ui/select'
+import { Notification, toast } from '@/components/ui'
 import Statistic from '@/components/shared/Statistic/Statistic'
 import { 
   FaWifi, 
@@ -46,33 +63,95 @@ const featureIcons: Record<string, ReactNode> = {
 
 const RoomCategories = () => {
   const [categories, setCategories] = useState<RoomCategory[]>([])
+  const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('all')
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  
+  // Room Assignment state
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
+  const [assignFormData, setAssignFormData] = useState({
+    occupantType: 'Employee' as 'Employee' | 'Temporary Visitor',
+    occupantId: '',
+    startDate: new Date().toISOString().split('T')[0],
+    expectedCheckoutDate: '',
+  })
+  const [assignErrors, setAssignErrors] = useState<Record<string, string>>({})
+  const [isAssigning, setIsAssigning] = useState(false)
+  
+  // Fetch employees and visitors for assignment
+  const { employees: allEmployees, fetchEmployees } = useEmployees()
+  const employees = useMemo(() => 
+    allEmployees.filter(emp => emp.status === 'Active'),
+    [allEmployees]
+  )
+  const visitors = useMemo(() => 
+    employees.filter(emp => emp.employeeType === 'Visitor'),
+    [employees]
+  )
 
   useEffect(() => {
-    const loadCategories = async () => {
+    const loadData = async () => {
       try {
-        const data = await getRoomCategories()
-        setCategories(data)
+        const [categoriesData, roomsData] = await Promise.all([
+          getRoomCategories(),
+          getRooms(),
+        ])
+        setCategories(categoriesData)
+        setRooms(roomsData)
       } catch (error) {
-        console.error('Failed to load room categories:', error)
+        console.error('Failed to load data:', error)
       } finally {
         setLoading(false)
       }
     }
-    loadCategories()
-  }, [])
+    loadData()
+    fetchEmployees()
+  }, [fetchEmployees])
+  
+  // Check URL params to open assign room modal
+  useEffect(() => {
+    const action = searchParams.get('action')
+    
+    if (action === 'assign' && rooms.length > 0 && !isAssignModalOpen) {
+      // Find first available room
+      const availableRoom = rooms.find(room => room.status === 'available')
+      
+      if (availableRoom) {
+        setSelectedRoom(availableRoom)
+        setAssignFormData({
+          occupantType: 'Employee',
+          occupantId: '',
+          startDate: new Date().toISOString().split('T')[0],
+          expectedCheckoutDate: '',
+        })
+        setAssignErrors({})
+        setIsAssignModalOpen(true)
+        // Clear the URL params after opening the modal
+        setSearchParams({}, { replace: true })
+      } else {
+        // No available rooms - show message and clear params
+        toast.push(
+          <Notification title="No Available Rooms" type="warning">
+            There are no available rooms to assign at the moment.
+          </Notification>,
+        )
+        setSearchParams({}, { replace: true })
+      }
+    }
+  }, [searchParams, rooms, isAssignModalOpen, setSearchParams])
 
   const filteredCategories = categories.filter(cat => 
     activeTab === 'all' || cat.status === 'active'
   )
 
-  // Calculate statistics
-  const totalRooms = categories.reduce((sum, cat) => sum + cat.roomCount, 0)
-  const availableRooms = categories.reduce((sum, cat) => sum + cat.availableCount, 0)
-  const occupiedRooms = totalRooms - availableRooms
-  const maintenanceRooms = Math.floor(totalRooms * 0.1) // 10% for demo
+  // Calculate statistics from actual rooms data
+  const totalRooms = rooms.length
+  const availableRooms = rooms.filter(r => r.status === 'available').length
+  const occupiedRooms = rooms.filter(r => r.status === 'occupied').length
+  const maintenanceRooms = rooms.filter(r => r.status === 'maintenance').length
 
   const getFeatureIcon = (iconName: string) => {
     return featureIcons[iconName] || featureIcons.default
@@ -86,7 +165,144 @@ const RoomCategories = () => {
     </Tooltip>
   )
 
-  const renderCategoryCard = (category: RoomCategory) => (
+  // Handle open assign modal
+  const handleOpenAssignModal = (room: Room) => {
+    if (room.status !== 'available') {
+      toast.push(
+        <Notification title="Cannot Assign" type="warning">
+          Only available rooms can be assigned.
+        </Notification>,
+      )
+      return
+    }
+    setSelectedRoom(room)
+    setAssignFormData({
+      occupantType: 'Employee',
+      occupantId: '',
+      startDate: new Date().toISOString().split('T')[0],
+      expectedCheckoutDate: '',
+    })
+    setAssignErrors({})
+    setIsAssignModalOpen(true)
+  }
+
+  // Handle assign form input change
+  const handleAssignInputChange = (name: string, value: any) => {
+    setAssignFormData(prev => ({ ...prev, [name]: value }))
+    // Clear error when user starts typing
+    if (assignErrors[name]) {
+      setAssignErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[name]
+        return newErrors
+      })
+    }
+  }
+
+  // Validate assign form
+  const validateAssignForm = (): boolean => {
+    const errors: Record<string, string> = {}
+
+    if (!assignFormData.occupantId) {
+      errors.occupantId = 'Please select an occupant'
+    }
+
+    if (!assignFormData.startDate) {
+      errors.startDate = 'Start date is required'
+    }
+
+    if (!assignFormData.expectedCheckoutDate) {
+      errors.expectedCheckoutDate = 'Expected checkout date is required'
+    } else if (assignFormData.startDate && assignFormData.expectedCheckoutDate) {
+      const start = new Date(assignFormData.startDate)
+      const checkout = new Date(assignFormData.expectedCheckoutDate)
+      if (checkout <= start) {
+        errors.expectedCheckoutDate = 'Checkout date must be after start date'
+      }
+    }
+
+    setAssignErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  // Handle assign room submission
+  const handleAssignRoom = async () => {
+    if (!validateAssignForm() || !selectedRoom) return
+
+    setIsAssigning(true)
+    try {
+      const payload: AssignRoomPayload = {
+        roomId: selectedRoom.id,
+        occupantId: assignFormData.occupantId,
+        occupantType: assignFormData.occupantType,
+        startDate: assignFormData.startDate,
+        expectedCheckoutDate: assignFormData.expectedCheckoutDate,
+      }
+
+      await assignRoom(payload)
+      
+      // Update room status to occupied
+      const updatedRoom = await updateRoom(selectedRoom.id, { status: 'occupied' })
+      
+      // Update local rooms state
+      setRooms(prev => prev.map(room => 
+        room.id === selectedRoom.id ? updatedRoom : room
+      ))
+      
+      // Refresh rooms list to ensure data is in sync
+      const refreshedRooms = await getRooms()
+      setRooms(refreshedRooms)
+
+      // Close modal and reset form
+      setIsAssignModalOpen(false)
+      setSelectedRoom(null)
+      setAssignFormData({
+        occupantType: 'Employee',
+        occupantId: '',
+        startDate: new Date().toISOString().split('T')[0],
+        expectedCheckoutDate: '',
+      })
+
+      // Show success notification
+      toast.push(
+        <Notification title="Success" type="success">
+          Room {selectedRoom.roomNumber} has been assigned successfully.
+        </Notification>,
+      )
+    } catch (error: any) {
+      toast.push(
+        <Notification title="Error" type="danger">
+          {error.message || 'Failed to assign room. Please try again.'}
+        </Notification>,
+      )
+    } finally {
+      setIsAssigning(false)
+    }
+  }
+
+  // Get available occupants based on type
+  const getAvailableOccupants = () => {
+    if (assignFormData.occupantType === 'Employee') {
+      return employees
+        .filter(emp => emp.employeeType !== 'Visitor')
+        .map(emp => ({
+          value: emp._id || '',
+          label: `${emp.firstName} ${emp.lastName}${emp.department ? ` - ${emp.department}` : ''}`,
+        }))
+    } else {
+      return visitors.map(visitor => ({
+        value: visitor._id || '',
+        label: `${visitor.firstName} ${visitor.lastName}${visitor.department ? ` - ${visitor.department}` : ''}`,
+      }))
+    }
+  }
+
+  const renderCategoryCard = (category: RoomCategory) => {
+    const categoryRooms = rooms.filter(r => r.type === category.name.toLowerCase())
+    const roomCount = categoryRooms.length
+    const availableCount = categoryRooms.filter(r => r.status === 'available').length
+    
+    return (
     <Card key={category.id} className="h-full flex flex-col">
       <div className="relative h-40 bg-gray-100 dark:bg-gray-800 rounded-t-lg overflow-hidden">
         <img 
@@ -110,7 +326,7 @@ const RoomCategories = () => {
       <div className="p-4 flex-1 flex flex-col">
         <div className="flex items-center text-sm text-gray-500 mb-2">
           <span className="font-medium text-gray-700 dark:text-gray-200">
-            {category.availableCount} of {category.roomCount} rooms available
+            {availableCount} of {roomCount} rooms available
           </span>
         </div>
         
@@ -121,7 +337,7 @@ const RoomCategories = () => {
         <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2 mb-4">
           <div 
             className="bg-indigo-600 h-2 rounded-full" 
-            style={{ width: `${(category.availableCount / category.roomCount) * 100}%` }}
+            style={{ width: `${roomCount > 0 ? (availableCount / roomCount) * 100 : 0}%` }}
           />
         </div>
         
@@ -151,7 +367,7 @@ const RoomCategories = () => {
             )}
           </div>
           
-          <div className="flex justify-between items-center mt-2">
+          <div className="flex justify-between items-center mt-2 gap-2">
             <Button
               variant="plain"
               size="xs"
@@ -160,6 +376,26 @@ const RoomCategories = () => {
             >
               Configure
             </Button>
+            {availableCount > 0 && (
+              <Button
+                variant="solid"
+                size="xs"
+                icon={<HiOutlineUserAdd />}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // Find first available room in this category
+                  const categoryRooms = rooms.filter(
+                    r => r.type === category.name.toLowerCase() && r.status === 'available'
+                  )
+                  if (categoryRooms.length > 0) {
+                    handleOpenAssignModal(categoryRooms[0])
+                  }
+                }}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                Assign
+              </Button>
+            )}
             <Button
               variant="solid"
               size="xs"
@@ -172,7 +408,8 @@ const RoomCategories = () => {
         </div>
       </div>
     </Card>
-  )
+    )
+  }
 
   if (loading) {
     return (
@@ -239,6 +476,13 @@ const RoomCategories = () => {
           </Tabs>
           <Button
             variant="solid"
+            icon={<HiOutlineClipboardCheck />}
+            onClick={() => navigate('/room-assignments')}
+          >
+            Room Assignments
+          </Button>
+          <Button
+            variant="solid"
             icon={<HiOutlineAdjustments />}
             onClick={() => navigate('/rooms/category/new')}
           >
@@ -267,6 +511,205 @@ const RoomCategories = () => {
           </Button>
         </Card>
       )}
+
+      {/* Assign Room Modal */}
+      <Dialog
+        isOpen={isAssignModalOpen}
+        onClose={() => {
+          setIsAssignModalOpen(false)
+          setSelectedRoom(null)
+          setAssignFormData({
+            occupantType: 'Employee',
+            occupantId: '',
+            startDate: new Date().toISOString().split('T')[0],
+            expectedCheckoutDate: '',
+          })
+          setAssignErrors({})
+        }}
+        width={700}
+        style={{
+          content: {
+            maxHeight: '90vh',
+            height: 'auto',
+          },
+        }}
+      >
+        <div className="flex flex-col h-full max-h-[90vh]">
+          {/* Fixed Header */}
+          <div className="flex-shrink-0 p-6 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+              Assign Room {selectedRoom?.roomNumber}
+            </h3>
+          </div>
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {selectedRoom && (
+              <>
+                {/* Read-only Room Info */}
+                <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                    Room Information
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Room Number</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        {selectedRoom.roomNumber}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Type</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100 capitalize">
+                        {selectedRoom.type}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Capacity</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        {selectedRoom.capacity} {selectedRoom.capacity === 1 ? 'person' : 'people'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Price</div>
+                      <div className="font-medium text-gray-900 dark:text-gray-100">
+                        ${selectedRoom.pricePerNight}/night
+                      </div>
+                    </div>
+                  </div>
+                  {selectedRoom.amenities.length > 0 && (
+                    <div className="mt-3">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Amenities</div>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedRoom.amenities.map((amenity, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800/30 dark:text-blue-200"
+                          >
+                            {amenity}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Assignment Form */}
+                <FormContainer layout="vertical" size="sm">
+                  <FormItem
+                    label="Occupant Type"
+                    required
+                    invalid={!!assignErrors.occupantType}
+                    errorMessage={assignErrors.occupantType}
+                  >
+                    <Select
+                      value={{
+                        value: assignFormData.occupantType,
+                        label: assignFormData.occupantType,
+                      }}
+                      onChange={(selected) =>
+                        handleAssignInputChange('occupantType', selected?.value || 'Employee')
+                      }
+                      options={[
+                        { value: 'Employee', label: 'Employee' },
+                        { value: 'Temporary Visitor', label: 'Temporary Visitor' },
+                      ]}
+                      classNamePrefix="react-select"
+                    />
+                  </FormItem>
+
+                  <FormItem
+                    label="Select Occupant"
+                    required
+                    invalid={!!assignErrors.occupantId}
+                    errorMessage={assignErrors.occupantId}
+                  >
+                    <Select
+                      value={getAvailableOccupants().find(
+                        opt => opt.value === assignFormData.occupantId
+                      ) || null}
+                      onChange={(selected) =>
+                        handleAssignInputChange('occupantId', selected?.value || '')
+                      }
+                      options={getAvailableOccupants()}
+                      placeholder={`Select ${assignFormData.occupantType.toLowerCase()}`}
+                      classNamePrefix="react-select"
+                      isSearchable
+                      isClearable
+                    />
+                    {getAvailableOccupants().length === 0 && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        No {assignFormData.occupantType === 'Employee' ? 'employees' : 'visitors'} available
+                      </div>
+                    )}
+                  </FormItem>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormItem
+                      label="Assignment Start Date"
+                      required
+                      invalid={!!assignErrors.startDate}
+                      errorMessage={assignErrors.startDate}
+                    >
+                      <Input
+                        type="date"
+                        value={assignFormData.startDate}
+                        onChange={(e) => handleAssignInputChange('startDate', e.target.value)}
+                        min={new Date().toISOString().split('T')[0]}
+                        className={assignErrors.startDate ? 'border-red-500' : ''}
+                      />
+                    </FormItem>
+
+                    <FormItem
+                      label="Expected Check-out Date"
+                      required
+                      invalid={!!assignErrors.expectedCheckoutDate}
+                      errorMessage={assignErrors.expectedCheckoutDate}
+                    >
+                      <Input
+                        type="date"
+                        value={assignFormData.expectedCheckoutDate}
+                        onChange={(e) => handleAssignInputChange('expectedCheckoutDate', e.target.value)}
+                        min={assignFormData.startDate || new Date().toISOString().split('T')[0]}
+                        className={assignErrors.expectedCheckoutDate ? 'border-red-500' : ''}
+                      />
+                    </FormItem>
+                  </div>
+                </FormContainer>
+              </>
+            )}
+          </div>
+
+          {/* Fixed Footer with Buttons */}
+          <div className="flex-shrink-0 flex justify-end gap-2 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+            <Button
+              variant="plain"
+              onClick={() => {
+                setIsAssignModalOpen(false)
+                setSelectedRoom(null)
+                setAssignFormData({
+                  occupantType: 'Employee',
+                  occupantId: '',
+                  startDate: new Date().toISOString().split('T')[0],
+                  expectedCheckoutDate: '',
+                })
+                setAssignErrors({})
+              }}
+              disabled={isAssigning}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="solid"
+              onClick={handleAssignRoom}
+              loading={isAssigning}
+              disabled={isAssigning || getAvailableOccupants().length === 0}
+            >
+              Assign Room
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   )
 }

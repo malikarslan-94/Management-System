@@ -471,6 +471,7 @@ const AdminDashboard = () => {
                         {activeTab === 'camps' ? (
                             <CampsList
                                 camps={camps}
+                                rooms={rooms}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
                             />

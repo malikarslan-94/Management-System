@@ -8,23 +8,21 @@ import Avatar from '@/components/ui/Avatar'
 import Badge from '@/components/ui/Badge'
 import Statistic from '@/components/shared/Statistic/Statistic'
 import { getLocations, type LocationSummary } from '@/services/LocationService'
-import { getCamps, type Camp } from '@/services/CampService'
-
-// Mock data for statistics - replace with real data
-const statsData = {
-  totalLocations: 5,
-  totalCamps: 24,
-  totalRooms: 342,
-  occupancyRate: '78%',
-}
+import { useCamps } from '@/hooks/useCamps'
+import { useRooms } from '@/hooks/useRooms'
+import { Spinner } from '@/components/ui'
 
 const LocationsCamps = () => {
+  // Use the same hooks as Home.tsx
+  const { camps: allCamps, loading: campsLoading, error: campsError } = useCamps()
+  const { rooms, loading: roomsLoading, error: roomsError } = useRooms()
+  
   const [locations, setLocations] = useState<LocationSummary[]>([])
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null)
-  const [camps, setCamps] = useState<Camp[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
 
+  // Fetch locations
   useEffect(() => {
     const fetch = async () => {
       setLoading(true)
@@ -36,19 +34,45 @@ const LocationsCamps = () => {
     fetch()
   }, [])
 
-  useEffect(() => {
-    const fetchCamps = async () => {
-      if (!selectedLocation) return
-      setLoading(true)
-      const all = await getCamps()
-      // temporary filter by location string until real API
-      setCamps(all.filter(c => c.location === locations.find(l => l.id === selectedLocation)?.name))
-      setLoading(false)
-    }
-    fetchCamps()
-  }, [selectedLocation, locations])
+  // Filter camps by selected location
+  const camps = useMemo(() => {
+    if (!selectedLocation || !allCamps) return []
+    const locationName = locations.find(l => l.id === selectedLocation)?.name
+    return allCamps.filter(c => c.location === locationName)
+  }, [selectedLocation, locations, allCamps])
 
-  const filteredCamps = useMemo(() => camps.filter(c => c.name.toLowerCase().includes(search.toLowerCase())), [camps, search])
+  const filteredCamps = useMemo(() => {
+    if (!Array.isArray(camps)) return []
+    return camps.filter(c => c.name?.toLowerCase().includes(search.toLowerCase()))
+  }, [camps, search])
+
+  // Calculate statistics from CAMPS data (same logic as Home.tsx)
+  const stats = useMemo(() => {
+    const campsArray = Array.isArray(allCamps) ? allCamps : []
+    
+    // Calculate total rooms from camps data
+    const totalRoomsFromCamps = campsArray.reduce(
+      (sum, camp) => sum + (camp.totalRooms || 0),
+      0,
+    )
+    const occupiedRoomsFromCamps = campsArray.reduce(
+      (sum, camp) => sum + (camp.occupiedRooms || 0),
+      0,
+    )
+    
+    const totalCamps = campsArray.length
+    const totalLocations = locations.length
+    const occupancyRate = totalRoomsFromCamps > 0
+      ? Math.round((occupiedRoomsFromCamps / totalRoomsFromCamps) * 100)
+      : 0
+
+    return {
+      totalLocations,
+      totalCamps,
+      totalRooms: totalRoomsFromCamps,
+      occupancyRate: `${occupancyRate}%`,
+    }
+  }, [allCamps, locations])
 
   const locationColumns = [
     { header: 'Location', accessorKey: 'name' },
@@ -93,67 +117,93 @@ const LocationsCamps = () => {
     </Card>
   )
 
-  const renderCampCard = (camp: Camp) => (
-    <Card key={camp.id} className="hover:shadow-md transition-shadow duration-200">
-      <div className="flex">
-        <div className="flex-1">
-          <div className="flex items-center justify-between">
-            <h4 className="font-medium text-gray-900 dark:text-gray-100">{camp.name}</h4>
-            <Badge 
-              content={camp.status} 
-              className={camp.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}
-            />
-          </div>
-          <div className="flex items-center mt-2 text-sm">
-            <div className="flex items-center text-gray-500 dark:text-gray-400 mr-4">
-              <HiOutlineHome className="mr-1" /> {camp.totalRooms} rooms
-            </div>
-            <div className="flex items-center text-gray-500 dark:text-gray-400">
-              <HiOutlineUserGroup className="mr-1" /> {camp.occupiedRooms} occupied
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
-              <div 
-                className="bg-indigo-600 h-2 rounded-full" 
-                style={{ width: `${(camp.occupiedRooms / camp.totalRooms) * 100}%` }}
+  const renderCampCard = (camp: any) => {
+    const totalRooms = camp.totalRooms || 0
+    const occupiedRooms = camp.occupiedRooms || 0
+    const occupancyPercent = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
+    
+    return (
+      <Card key={camp._id || camp.id} className="hover:shadow-md transition-shadow duration-200">
+        <div className="flex">
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium text-gray-900 dark:text-gray-100">{camp.name}</h4>
+              <Badge 
+                content={camp.status || 'inactive'} 
+                className={camp.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300' : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}
               />
             </div>
-            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-              <span>Occupancy</span>
-              <span>{Math.round((camp.occupiedRooms / camp.totalRooms) * 100)}%</span>
+            <div className="flex items-center mt-2 text-sm">
+              <div className="flex items-center text-gray-500 dark:text-gray-400 mr-4">
+                <HiOutlineHome className="mr-1" /> {totalRooms} rooms
+              </div>
+              <div className="flex items-center text-gray-500 dark:text-gray-400">
+                <HiOutlineUserGroup className="mr-1" /> {occupiedRooms} occupied
+              </div>
             </div>
+            {totalRooms > 0 && (
+              <div className="mt-3">
+                <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                  <div 
+                    className="bg-indigo-600 h-2 rounded-full" 
+                    style={{ width: `${occupancyPercent}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  <span>Occupancy</span>
+                  <span>{occupancyPercent}%</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+      </Card>
+    )
+  }
+
+  // Show loading state
+  if (campsLoading || loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Spinner />
       </div>
-    </Card>
-  )
+    )
+  }
+
+  // Show error state
+  if (campsError || roomsError) {
+    return (
+      <div className="p-4 text-red-500">
+        Error loading data: {campsError || roomsError}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      {/* Statistics Section */}
+      {/* Statistics Section - Using real data from camps */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Statistic
           title="Total Locations"
-          value={statsData.totalLocations}
+          value={stats.totalLocations}
           icon={<HiOutlineMap className="text-2xl" />}
           color="indigo"
         />
         <Statistic
           title="Total Camps"
-          value={statsData.totalCamps}
+          value={stats.totalCamps}
           icon={<HiOutlineOfficeBuilding className="text-2xl" />}
           color="blue"
         />
         <Statistic
           title="Total Rooms"
-          value={statsData.totalRooms}
+          value={stats.totalRooms}
           icon={<HiOutlineHome className="text-2xl" />}
           color="emerald"
         />
         <Statistic
           title="Average Occupancy"
-          value={statsData.occupancyRate}
+          value={stats.occupancyRate}
           icon={<HiOutlineUserGroup className="text-2xl" />}
           color="amber"
         />

@@ -14,6 +14,7 @@ import { useRooms } from '@/hooks/useRooms'
 import type { Employee } from '@/services/EmployeeService'
 import { ColumnDef } from '@tanstack/react-table'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
     HiOutlineCalendar,
     HiOutlineCheckCircle,
@@ -31,6 +32,9 @@ import {
 type TabType = 'all' | 'visitors'
 
 const EmployeeManagement = () => {
+    const [searchParams, setSearchParams] = useSearchParams()
+    const navigate = useNavigate()
+    
     const [activeTab, setActiveTab] = useState<TabType>('all')
     const [searchQuery, setSearchQuery] = useState('')
     const [filters, setFilters] = useState({
@@ -87,6 +91,29 @@ const EmployeeManagement = () => {
         fetchRooms()
         fetchEmployees()
     }, [fetchCamps, fetchRooms, fetchEmployees])
+
+    // Check URL params to open add employee form
+    useEffect(() => {
+        const action = searchParams.get('action')
+        const type = searchParams.get('type')
+        
+        if (action === 'add') {
+            setIsEditing(false)
+            setErrors({})
+            
+            // If type is visitor, set employeeType to Visitor
+            if (type === 'visitor') {
+                setFormData({ employeeType: 'Visitor', status: 'Active' })
+            } else {
+                setFormData({ employeeType: 'Permanent', status: 'Active' })
+            }
+            
+            setIsModalOpen(true)
+            
+            // Clear the URL params after opening the modal
+            setSearchParams({}, { replace: true })
+        }
+    }, [searchParams, setSearchParams])
 
     // State for stats data - fetch separately
     const [statsData, setStatsData] = useState({
@@ -813,22 +840,37 @@ const EmployeeManagement = () => {
                     setErrors({})
                 }}
                 width={800}
+                style={{
+                    content: {
+                        maxHeight: '90vh',
+                        height: 'auto',
+                    },
+                }}
             >
-                <div className="p-6">
-                    <h3 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
-                        {isEditing ? 'Edit Employee' : 'Add New Employee'}
-                    </h3>
-                    <EmployeeForm
-                        formData={formData}
-                        errors={errors}
-                        camps={camps}
-                        rooms={rooms}
-                        handleInputChange={handleInputChange}
-                        handleSelectChange={handleSelectChange}
-                        validateField={validateField}
-                        getClass={getClass}
-                    />
-                    <div className="flex justify-end gap-2 mt-6">
+                <div className="flex flex-col h-full max-h-[90vh]">
+                    {/* Fixed Header */}
+                    <div className="flex-shrink-0 p-6 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                            {isEditing ? 'Edit Employee' : 'Add New Employee'}
+                        </h3>
+                    </div>
+                    
+                    {/* Scrollable Form Content */}
+                    <div className="flex-1 overflow-y-auto p-6">
+                        <EmployeeForm
+                            formData={formData}
+                            errors={errors}
+                            camps={camps}
+                            rooms={rooms}
+                            handleInputChange={handleInputChange}
+                            handleSelectChange={handleSelectChange}
+                            validateField={validateField}
+                            getClass={getClass}
+                        />
+                    </div>
+                    
+                    {/* Fixed Footer with Buttons */}
+                    <div className="flex-shrink-0 flex justify-end gap-2 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                         <Button
                             variant="plain"
                             onClick={() => {

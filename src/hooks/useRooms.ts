@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 interface Room {
     _id: string
-    camp: string
+    camp: string | { _id: string; name: string; location: string } // Can be ID string or populated camp object
     roomNumber: string
     type: 'single' | 'double' | 'suite' | 'family'
     capacity: number
@@ -14,6 +14,34 @@ interface Room {
     description?: string
 }
 
+/**
+ * useRooms Hook
+ *
+ * Fetches and manages rooms data.
+ *
+ * @param campId - Optional camp ID to filter rooms by camp
+ *
+ * Behavior:
+ * - If campId is provided: Fetches only rooms belonging to that specific camp
+ *   (calls GET /api/rooms/camp/:campId)
+ *
+ * - If campId is NOT provided: Fetches ALL rooms from ALL camps
+ *   (calls GET /api/rooms)
+ *
+ * Usage examples:
+ * - useRooms() - Fetches all rooms (used in Home.tsx and AdminDashboard.jsx)
+ * - useRooms('camp123') - Fetches only rooms for camp with ID 'camp123'
+ *
+ * Important Note:
+ * - The camps list shows `totalRooms` from the Camp model, which is a stored
+ *   number field (like "capacity" or "planned rooms"), NOT a count of actual
+ *   Room documents.
+ * - This hook fetches actual Room documents from the database.
+ * - These two numbers may differ! For example:
+ *   - Camp A might have totalRooms: 5 (planned/configured)
+ *   - But only 2 actual Room documents exist in the database
+ * - The console will log a breakdown showing actual rooms per camp.
+ */
 export const useRooms = (campId?: string) => {
     const [rooms, setRooms] = useState<Room[]>([])
     const [loading, setLoading] = useState(true)
@@ -22,22 +50,67 @@ export const useRooms = (campId?: string) => {
     const fetchRooms = useCallback(async () => {
         try {
             setLoading(true)
+            // If campId is provided, fetch rooms for that specific camp
+            // Otherwise, fetch ALL rooms from all camps
             const response = campId
                 ? await roomApi.getByCampId(campId)
                 : await roomApi.getAll()
 
             console.log('Rooms API Response:', response)
+            console.log(
+                'CampId provided:',
+                campId || 'none (fetching all rooms)',
+            )
 
-            // Handle both direct array and wrapped response formats
-            const roomsData = response.data?.data || response.data || []
+            // Axios wraps the response in .data property
+            // Server returns array directly, so response.data is the array
+            // Handle both direct array and wrapped response formats for compatibility
+            let roomsData = response.data
+
+            // If response.data is an object with a data property (nested response)
+            if (
+                roomsData &&
+                typeof roomsData === 'object' &&
+                !Array.isArray(roomsData) &&
+                roomsData.data
+            ) {
+                roomsData = roomsData.data
+            }
+
+            // Ensure we have an array
+            roomsData = Array.isArray(roomsData) ? roomsData : []
+
             console.log('Extracted rooms data:', roomsData)
-            setRooms(Array.isArray(roomsData) ? roomsData : [])
+            console.log('Total rooms fetched:', roomsData.length)
+
+            // Log breakdown by camp to help debug
+            if (roomsData.length > 0 && !campId) {
+                const roomsByCamp: Record<string, number> = {}
+                roomsData.forEach((room: Room) => {
+                    const campIdValue =
+                        typeof room.camp === 'object' && room.camp?._id
+                            ? room.camp._id
+                            : room.camp
+                    const campName =
+                        typeof room.camp === 'object' && room.camp?.name
+                            ? room.camp.name
+                            : 'Unknown'
+                    roomsByCamp[campName] = (roomsByCamp[campName] || 0) + 1
+                })
+                console.log('Rooms breakdown by camp:', roomsByCamp)
+                console.log(
+                    'Note: Camp totalRooms field may differ from actual Room documents count',
+                )
+            }
+
+            setRooms(roomsData)
             setError(null)
             return roomsData
         } catch (err) {
             console.error('Error fetching rooms:', err)
             setError('Failed to fetch rooms')
             alert('Failed to load rooms. Please try again.')
+            setRooms([]) // Reset to empty array on error
         } finally {
             setLoading(false)
         }

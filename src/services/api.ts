@@ -36,4 +36,13 @@ export const employeeApi = {
     delete: (id: string) => api.delete(`/api/employees/${id}`),
 }
 
+// Room Assignment API
+export const assignmentApi = {
+    getAll: (params?: any) => api.get('/api/assignments', { params }),
+    getById: (id: string) => api.get(`/api/assignments/${id}`),
+    create: (data: any) => api.post('/api/assignments', data),
+    update: (id: string, data: any) => api.put(`/api/assignments/${id}`, data),
+    delete: (id: string) => api.delete(`/api/assignments/${id}`),
+}
+
 export default api
