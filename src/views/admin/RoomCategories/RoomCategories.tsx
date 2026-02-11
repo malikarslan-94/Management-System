@@ -298,7 +298,7 @@ const RoomCategories = () => {
   }
 
   const renderCategoryCard = (category: RoomCategory) => {
-    const categoryRooms = rooms.filter(r => r.type === category.name.toLowerCase())
+    const categoryRooms = rooms.filter(r => r.type === category.roomType)
     const roomCount = categoryRooms.length
     const availableCount = categoryRooms.filter(r => r.status === 'available').length
     
@@ -385,7 +385,7 @@ const RoomCategories = () => {
                   e.stopPropagation()
                   // Find first available room in this category
                   const categoryRooms = rooms.filter(
-                    r => r.type === category.name.toLowerCase() && r.status === 'available'
+                    r => r.type === category.roomType && r.status === 'available'
                   )
                   if (categoryRooms.length > 0) {
                     handleOpenAssignModal(categoryRooms[0])
@@ -568,12 +568,6 @@ const RoomCategories = () => {
                       <div className="text-xs text-gray-500 dark:text-gray-400">Capacity</div>
                       <div className="font-medium text-gray-900 dark:text-gray-100">
                         {selectedRoom.capacity} {selectedRoom.capacity === 1 ? 'person' : 'people'}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">Price</div>
-                      <div className="font-medium text-gray-900 dark:text-gray-100">
-                        ${selectedRoom.pricePerNight}/night
                       </div>
                     </div>
                   </div>

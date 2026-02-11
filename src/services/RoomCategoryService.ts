@@ -15,7 +15,13 @@ export interface RoomCategory {
   status: 'active' | 'inactive'
   roomCount: number
   availableCount: number
+  // Map to Room Type enum values
+  roomType: 'single' | 'double' | 'suite' | 'family' | 'dormitory'
 }
+
+// Mapping: Room Category -> Room Type
+// Room Type is the backend enum: 'single' | 'double' | 'suite' | 'family' | 'dormitory'
+// Room Category is a frontend display concept with rich information
 
 // Mock data - replace with actual API calls
 export const getRoomCategories = async (): Promise<RoomCategory[]> => {
@@ -30,6 +36,23 @@ export const getRoomCategories = async (): Promise<RoomCategory[]> => {
       status: 'active',
       roomCount: 25,
       availableCount: 15,
+      roomType: 'single', // Maps to Room.type = 'single'
+      features: [
+        { id: 'wifi', name: 'Free WiFi', icon: 'wifi' },
+        { id: 'ac', name: 'Air Conditioning', icon: 'snowflake' },
+        { id: 'tv', name: 'Flat-screen TV', icon: 'tv' },
+      ]
+    },
+    {
+      id: 'double',
+      name: 'Double Room',
+      description: 'Comfortable room with two beds, perfect for couples or friends',
+      basePrice: 149,
+      image: '/img/rooms/double.jpg',
+      status: 'active',
+      roomCount: 20,
+      availableCount: 12,
+      roomType: 'double', // Maps to Room.type = 'double'
       features: [
         { id: 'wifi', name: 'Free WiFi', icon: 'wifi' },
         { id: 'ac', name: 'Air Conditioning', icon: 'snowflake' },
@@ -45,6 +68,7 @@ export const getRoomCategories = async (): Promise<RoomCategory[]> => {
       status: 'active',
       roomCount: 15,
       availableCount: 8,
+      roomType: 'suite', // Maps to Room.type = 'suite'
       features: [
         { id: 'wifi', name: 'Free WiFi', icon: 'wifi' },
         { id: 'ac', name: 'Air Conditioning', icon: 'snowflake' },
@@ -62,6 +86,7 @@ export const getRoomCategories = async (): Promise<RoomCategory[]> => {
       status: 'active',
       roomCount: 10,
       availableCount: 5,
+      roomType: 'family', // Maps to Room.type = 'family'
       features: [
         { id: 'wifi', name: 'Free WiFi', icon: 'wifi' },
         { id: 'ac', name: 'Air Conditioning', icon: 'snowflake' },
@@ -79,6 +104,7 @@ export const getRoomCategories = async (): Promise<RoomCategory[]> => {
       status: 'active',
       roomCount: 8,
       availableCount: 3,
+      roomType: 'suite', // Maps to Room.type = 'suite' (executive is a type of suite)
       features: [
         { id: 'wifi', name: 'Premium WiFi', icon: 'wifi' },
         { id: 'ac', name: 'Climate Control', icon: 'thermometer' },

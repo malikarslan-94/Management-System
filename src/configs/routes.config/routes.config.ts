@@ -27,7 +27,7 @@ export const protectedRoutes = [
     {
         key: 'roomsManagement',
         path: '/rooms',
-        component: lazy(() => import('@/views/admin/RoomCategories')),
+        component: lazy(() => import('@/views/admin/RoomManagement')),
         authority: [],
     },
     {

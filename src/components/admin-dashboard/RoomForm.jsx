@@ -100,20 +100,12 @@ const RoomForm = ({
                 )}
             </FormItem>
 
-            <FormItem label="Price Per Night" required>
-                <Input
-                    type="number"
-                    name="price"
-                    min="0"
-                    value={formData.price || ''}
-                    onChange={handleInputChange}
-                    onBlur={(e) => validateField('price', e.target.value)}
-                    className={`w-full ${getClass('price')}`}
-                />
-                {errors.price && (
-                    <div className="text-xs text-red-600">{errors.price}</div>
-                )}
-            </FormItem>
+            {/* Price field hidden from UI but still in form data for backend */}
+            <input
+                type="hidden"
+                name="price"
+                value={formData.price || 0}
+            />
 
             <FormItem label="Available" required>
                 <div className="flex items-center space-x-2">

@@ -13,36 +13,59 @@ const RoomsList = ({ rooms, onEdit, onDelete, camps }) => {
           )
         : []
 
-    // Calculate statistics from CAMPS data (not Room documents)
+    // Calculate statistics from ACTUAL Room documents (not Camp model fields)
     const stats = useMemo(() => {
-        // Calculate from camps data (totalRooms and occupiedRooms from each camp)
-        let totalRooms = 0
-        let occupiedRooms = 0
+        const roomsArray = Array.isArray(rooms) ? rooms : []
+        const campsArray = Array.isArray(camps) ? camps : []
+        
+        // Calculate from actual Room documents (useRooms returns isAvailable boolean)
+        const totalRooms = roomsArray.length
+        const availableRooms = roomsArray.filter(
+            (room) => room.isAvailable === true
+        ).length
+        const occupiedRooms = roomsArray.filter(
+            (room) => room.isAvailable === false
+        ).length
+        
+        // Calculate breakdown by camp from actual Room documents
         const roomsByCamp = {}
-        
-        if (Array.isArray(camps) && camps.length > 0) {
-            camps.forEach((camp) => {
-                const campTotal = camp.totalRooms || 0
-                const campOccupied = camp.occupiedRooms || 0
-                const campAvailable = campTotal - campOccupied
-                
-                totalRooms += campTotal
-                occupiedRooms += campOccupied
-                
-                if (campTotal > 0) {
-                    roomsByCamp[camp.name || 'Unknown Camp'] = {
-                        total: campTotal,
-                        occupied: campOccupied,
-                        available: campAvailable
-                    }
+        roomsArray.forEach((room) => {
+            const campId = typeof room.camp === 'object' && room.camp?._id 
+                ? room.camp._id 
+                : room.camp
+            const campName = typeof room.camp === 'object' && room.camp?.name
+                ? room.camp.name
+                : campsArray.find((c) => c._id === campId)?.name || 'Unknown Camp'
+            
+            if (!roomsByCamp[campName]) {
+                roomsByCamp[campName] = {
+                    total: 0,
+                    available: 0,
+                    occupied: 0
                 }
-            })
-        }
+            }
+            
+            roomsByCamp[campName].total++
+            if (room.isAvailable === true) {
+                roomsByCamp[campName].available++
+            } else {
+                roomsByCamp[campName].occupied++
+            }
+        })
         
-        const availableRooms = totalRooms - occupiedRooms
+        // Log stats for verification
+        console.log('RoomsList Stats:', {
+            totalRooms,
+            availableRooms,
+            occupiedRooms,
+            occupancyRate: totalRooms > 0 
+                ? Math.round((occupiedRooms / totalRooms) * 100) 
+                : 0,
+            roomsByCamp,
+        })
         
         return { totalRooms, availableRooms, occupiedRooms, roomsByCamp }
-    }, [camps])
+    }, [rooms, camps])
 
     const getStatusClass = (isAvailable) => {
         return isAvailable
@@ -73,7 +96,7 @@ const RoomsList = ({ rooms, onEdit, onDelete, camps }) => {
                         <div className="ml-4">
                             <p className="text-sm font-medium text-gray-600">Total Rooms</p>
                             <p className="text-2xl font-bold text-gray-900">{stats.totalRooms}</p>
-                            <p className="text-xs text-gray-500">From camps data</p>
+                            <p className="text-xs text-gray-500">From room documents</p>
                         </div>
                     </div>
                 </div>
@@ -145,9 +168,6 @@ const RoomsList = ({ rooms, onEdit, onDelete, camps }) => {
                             Type
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Price/Night
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Status
                         </th>
                         <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -159,7 +179,7 @@ const RoomsList = ({ rooms, onEdit, onDelete, camps }) => {
                     {sortedRooms.length === 0 ? (
                         <tr>
                             <td
-                                colSpan="6"
+                                colSpan="5"
                                 className="px-6 py-8 text-center text-gray-500"
                             >
                                 No rooms available. Add your first room to get
@@ -177,9 +197,6 @@ const RoomsList = ({ rooms, onEdit, onDelete, camps }) => {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
                                     {room.type}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    ${room.price}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <Badge

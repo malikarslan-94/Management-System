@@ -46,11 +46,21 @@ const LocationsCamps = () => {
     return camps.filter(c => c.name?.toLowerCase().includes(search.toLowerCase()))
   }, [camps, search])
 
-  // Calculate statistics from CAMPS data (same logic as Home.tsx)
+  // Calculate statistics from ACTUAL Room documents (not Camp model fields)
   const stats = useMemo(() => {
     const campsArray = Array.isArray(allCamps) ? allCamps : []
+    const roomsArray = Array.isArray(rooms) ? rooms : []
     
-    // Calculate total rooms from camps data
+    // Calculate from actual Room documents (useRooms returns isAvailable boolean)
+    const totalRoomsFromDocuments = roomsArray.length
+    const occupiedRoomsFromDocuments = roomsArray.filter(
+      (room) => room.isAvailable === false
+    ).length
+    const availableRoomsFromDocuments = roomsArray.filter(
+      (room) => room.isAvailable === true
+    ).length
+    
+    // Also calculate from Camp model fields for comparison (legacy)
     const totalRoomsFromCamps = campsArray.reduce(
       (sum, camp) => sum + (camp.totalRooms || 0),
       0,
@@ -62,17 +72,35 @@ const LocationsCamps = () => {
     
     const totalCamps = campsArray.length
     const totalLocations = locations.length
-    const occupancyRate = totalRoomsFromCamps > 0
-      ? Math.round((occupiedRoomsFromCamps / totalRoomsFromCamps) * 100)
+    
+    // Use actual Room documents count (more accurate)
+    const occupancyRate = totalRoomsFromDocuments > 0
+      ? Math.round((occupiedRoomsFromDocuments / totalRoomsFromDocuments) * 100)
       : 0
+
+    console.log('LocationsCamps Stats:', {
+      totalRoomsFromDocuments,
+      totalRoomsFromCamps,
+      occupiedRoomsFromDocuments,
+      occupiedRoomsFromCamps,
+      availableRoomsFromDocuments,
+      totalCamps,
+      totalLocations,
+      occupancyRate,
+    })
 
     return {
       totalLocations,
       totalCamps,
-      totalRooms: totalRoomsFromCamps,
+      totalRooms: totalRoomsFromDocuments, // Use actual Room documents count
+      occupiedRooms: occupiedRoomsFromDocuments,
+      availableRooms: availableRoomsFromDocuments,
       occupancyRate: `${occupancyRate}%`,
+      // Legacy fields for comparison
+      totalRoomsFromCamps,
+      occupiedRoomsFromCamps,
     }
-  }, [allCamps, locations])
+  }, [allCamps, locations, rooms])
 
   const locationColumns = [
     { header: 'Location', accessorKey: 'name' },
@@ -118,9 +146,26 @@ const LocationsCamps = () => {
   )
 
   const renderCampCard = (camp: any) => {
-    const totalRooms = camp.totalRooms || 0
-    const occupiedRooms = camp.occupiedRooms || 0
+    // Calculate from actual Room documents for this camp
+    const campId = camp._id || camp.id
+    const campRooms = Array.isArray(rooms) 
+      ? rooms.filter((room) => {
+          const roomCampId = typeof room.camp === 'object' && room.camp?._id 
+            ? room.camp._id 
+            : room.camp
+          return roomCampId === campId
+        })
+      : []
+    
+    const totalRooms = campRooms.length
+    const occupiedRooms = campRooms.filter(
+      (room) => room.isAvailable === false
+    ).length
     const occupancyPercent = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0
+    
+    // Fallback to Camp model fields if no rooms found (for display purposes)
+    const displayTotalRooms = totalRooms > 0 ? totalRooms : (camp.totalRooms || 0)
+    const displayOccupiedRooms = totalRooms > 0 ? occupiedRooms : (camp.occupiedRooms || 0)
     
     return (
       <Card key={camp._id || camp.id} className="hover:shadow-md transition-shadow duration-200">
@@ -135,13 +180,13 @@ const LocationsCamps = () => {
             </div>
             <div className="flex items-center mt-2 text-sm">
               <div className="flex items-center text-gray-500 dark:text-gray-400 mr-4">
-                <HiOutlineHome className="mr-1" /> {totalRooms} rooms
+                <HiOutlineHome className="mr-1" /> {displayTotalRooms} rooms
               </div>
               <div className="flex items-center text-gray-500 dark:text-gray-400">
-                <HiOutlineUserGroup className="mr-1" /> {occupiedRooms} occupied
+                <HiOutlineUserGroup className="mr-1" /> {displayOccupiedRooms} occupied
               </div>
             </div>
-            {totalRooms > 0 && (
+            {displayTotalRooms > 0 && (
               <div className="mt-3">
                 <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
                   <div 
@@ -162,7 +207,7 @@ const LocationsCamps = () => {
   }
 
   // Show loading state
-  if (campsLoading || loading) {
+  if (campsLoading || roomsLoading || loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Spinner />

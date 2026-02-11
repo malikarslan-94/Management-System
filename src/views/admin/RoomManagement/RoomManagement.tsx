@@ -41,10 +41,9 @@ import {
     HiOutlineHome,
     HiOutlinePlus,
     HiOutlineSearch,
-    HiOutlineStar,
     HiOutlineUserAdd,
     HiOutlineViewGrid,
-    HiOutlineViewList,
+    HiOutlineViewList
 } from 'react-icons/hi'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
@@ -111,14 +110,28 @@ const RoomManagement = () => {
         const fetchData = async () => {
             try {
                 setIsLoading(true)
+                console.log('Fetching room data...')
                 const [categoriesData, roomsData] = await Promise.all([
                     getRoomCategories(),
                     getRooms(),
                 ])
-                setCategories(categoriesData)
-                setRooms(roomsData)
+                console.log('Categories data:', categoriesData)
+                console.log('Rooms data:', roomsData)
+                console.log('Number of rooms received:', roomsData?.length || 0)
+                console.log('Rooms breakdown:', {
+                    total: roomsData?.length || 0,
+                    available: roomsData?.filter((r: Room) => r.status === 'available').length || 0,
+                    occupied: roomsData?.filter((r: Room) => r.status === 'occupied').length || 0,
+                    maintenance: roomsData?.filter((r: Room) => r.status === 'maintenance').length || 0,
+                    cleaning: roomsData?.filter((r: Room) => r.status === 'cleaning').length || 0,
+                })
+                setCategories(categoriesData || [])
+                setRooms(roomsData || [])
             } catch (error) {
                 console.error('Error fetching data:', error)
+                // Set empty arrays on error to prevent crashes
+                setCategories([])
+                setRooms([])
             } finally {
                 setIsLoading(false)
             }
@@ -183,10 +196,11 @@ const RoomManagement = () => {
         setSearchParams,
     ])
 
-    // Filter rooms based on search and active category
+    // Filter rooms based on search, active category, camp, and type filters
     const filteredRooms = useMemo(() => {
         let result = [...rooms]
 
+        // Search filter
         if (searchQuery) {
             const query = searchQuery.toLowerCase()
             result = result.filter(
@@ -197,13 +211,15 @@ const RoomManagement = () => {
             )
         }
 
+        // Category filter (when viewing from category view)
         if (activeCategory) {
             result = result.filter((room) => {
                 const category = categories.find(
                     (cat) => cat.id === activeCategory,
                 )
+                // Use roomType mapping instead of name matching
                 return category
-                    ? room.type === category.name.toLowerCase()
+                    ? room.type === category.roomType
                     : false
             })
         }
@@ -211,25 +227,49 @@ const RoomManagement = () => {
         return result
     }, [rooms, searchQuery, activeCategory, categories])
 
-    // Calculate statistics
-    const stats = useMemo(
-        () => ({
-            totalCategories: categories.length,
-            totalRooms: rooms.length,
-            availableRooms: rooms.filter((room) => room.status === 'available')
-                .length,
-            occupiedRooms: rooms.filter((room) => room.status === 'occupied')
-                .length,
-            maintenanceRooms: rooms.filter(
-                (room) => room.status === 'maintenance',
-            ).length,
-            avgPrice: Math.round(
-                rooms.reduce((sum, room) => sum + room.pricePerNight, 0) /
-                    (rooms.length || 1),
-            ),
-        }),
-        [categories, rooms],
-    )
+    // Calculate statistics from actual Room documents
+    const stats = useMemo(() => {
+        const roomsArray = Array.isArray(rooms) ? rooms : []
+        const categoriesArray = Array.isArray(categories) ? categories : []
+        
+        const totalRooms = roomsArray.length
+        const availableRooms = roomsArray.filter(
+            (room) => room.status === 'available'
+        ).length
+        const occupiedRooms = roomsArray.filter(
+            (room) => room.status === 'occupied'
+        ).length
+        const maintenanceRooms = roomsArray.filter(
+            (room) => room.status === 'maintenance'
+        ).length
+        const cleaningRooms = roomsArray.filter(
+            (room) => room.status === 'cleaning'
+        ).length
+        
+        const statsResult = {
+            totalCategories: categoriesArray.length,
+            totalRooms,
+            availableRooms,
+            occupiedRooms,
+            maintenanceRooms,
+            cleaningRooms,
+        }
+        
+        // Log stats for verification
+        console.log('RoomManagement Stats:', {
+            totalCategories: statsResult.totalCategories,
+            totalRooms: statsResult.totalRooms,
+            availableRooms: statsResult.availableRooms,
+            occupiedRooms: statsResult.occupiedRooms,
+            maintenanceRooms: statsResult.maintenanceRooms,
+            cleaningRooms: statsResult.cleaningRooms,
+            occupancyRate: totalRooms > 0 
+                ? Math.round((occupiedRooms / totalRooms) * 100) 
+                : 0,
+        })
+        
+        return statsResult
+    }, [categories, rooms])
 
     // Render feature icon with tooltip
     const renderFeatureIcon = (feature: string) => {
@@ -412,15 +452,31 @@ const RoomManagement = () => {
     }
 
     // Render category cards
-    const renderCategories = () => (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {categories.map((category) => {
+    const renderCategories = () => {
+        if (categories.length === 0) {
+            return (
+                <Card className="text-center p-8">
+                    <div className="text-5xl mb-4">🏨</div>
+                    <h3 className="text-lg font-medium mb-2">No Room Categories Found</h3>
+                    <p className="text-gray-500 mb-4">
+                        Categories are loading or not available. Check console for errors.
+                    </p>
+                    <p className="text-xs text-gray-400">
+                        Categories: {categories.length}, Rooms: {rooms.length}
+                    </p>
+                </Card>
+            )
+        }
+        
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {categories.map((category) => {
                 const roomCount = rooms.filter(
-                    (r) => r.type === category.name.toLowerCase(),
+                    (r) => r.type === category.roomType,
                 ).length
                 const availableCount = rooms.filter(
                     (r) =>
-                        r.type === category.name.toLowerCase() &&
+                        r.type === category.roomType &&
                         r.status === 'available',
                 ).length
 
@@ -458,12 +514,6 @@ const RoomManagement = () => {
                                 <h3 className="font-semibold text-lg">
                                     {category.name}
                                 </h3>
-                                <span className="text-lg font-bold text-blue-500">
-                                    ${category.basePrice}
-                                    <span className="text-xs text-gray-500">
-                                        /night
-                                    </span>
-                                </span>
                             </div>
                             <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">
                                 {category.description}
@@ -502,7 +552,7 @@ const RoomManagement = () => {
                                                     rooms.filter(
                                                         (r) =>
                                                             r.type ===
-                                                                category.name.toLowerCase() &&
+                                                                category.roomType &&
                                                             r.status ===
                                                                 'available',
                                                     )
@@ -541,8 +591,9 @@ const RoomManagement = () => {
                     </AdaptableCard>
                 )
             })}
-        </div>
-    )
+            </div>
+        )
+    }
 
     // Render rooms list
     const renderRooms = () => (
@@ -624,12 +675,6 @@ const RoomManagement = () => {
                                                 ? 'person'
                                                 : 'people'}
                                         </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs text-gray-500">
-                                            Price
-                                        </div>
-                                        <div>${room.pricePerNight}/night</div>
                                     </div>
                                     <div>
                                         <div className="text-xs text-gray-500">
@@ -774,14 +819,14 @@ const RoomManagement = () => {
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex items-center">
                 <div className="p-3 rounded-full bg-amber-500/10 text-2xl text-amber-500">
-                    <HiOutlineStar />
+                    <HiOutlineHome />
                 </div>
                 <div className="ml-4">
                     <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Avg. Price
+                        Occupied
                     </p>
                     <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                        ${stats.avgPrice}
+                        {stats.occupiedRooms}
                     </p>
                 </div>
             </div>
@@ -893,15 +938,6 @@ const RoomManagement = () => {
                                                 {selectedRoom.capacity === 1
                                                     ? 'person'
                                                     : 'people'}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                Price
-                                            </div>
-                                            <div className="font-medium text-gray-900 dark:text-gray-100">
-                                                ${selectedRoom.pricePerNight}
-                                                /night
                                             </div>
                                         </div>
                                     </div>
