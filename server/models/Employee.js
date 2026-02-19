@@ -24,6 +24,26 @@ const employeeSchema = new mongoose.Schema(
             required: true,
             trim: true,
         },
+        iqamaNumber: {
+            type: String,
+            required: true,
+            trim: true,
+            unique: true,
+        },
+        employeeId: {
+            type: String,
+            required: true,
+            trim: true,
+            unique: true,
+        },
+        location: {
+            type: String,
+            trim: true,
+        },
+        project: {
+            type: String,
+            trim: true,
+        },
         department: {
             type: String,
             trim: true,
@@ -75,8 +95,11 @@ const employeeSchema = new mongoose.Schema(
 
 // Index for faster queries
 employeeSchema.index({ email: 1 })
+employeeSchema.index({ iqamaNumber: 1 })
+employeeSchema.index({ employeeId: 1 })
 employeeSchema.index({ campId: 1 })
 employeeSchema.index({ employeeType: 1 })
 employeeSchema.index({ status: 1 })
+employeeSchema.index({ location: 1 })
 
 module.exports = mongoose.model('Employee', employeeSchema)

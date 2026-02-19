@@ -115,26 +115,44 @@ router.get('/:id', getEmployee, (req, res) => {
 
 // Create new employee
 router.post('/', async (req, res) => {
-    console.log('📝 POST /api/employees - Creating employee:', req.body)
+    console.log('Add Employee Payload:', JSON.stringify(req.body, null, 2))
     try {
         // Validate required fields
         if (
             !req.body.firstName ||
             !req.body.lastName ||
             !req.body.email ||
-            !req.body.phone
+            !req.body.phone ||
+            !req.body.iqamaNumber ||
+            !req.body.employeeId
         ) {
             return res.status(400).json({
-                message: 'firstName, lastName, email, and phone are required',
+                message: 'firstName, lastName, email, phone, iqamaNumber, and employeeId are required',
             })
         }
 
         // Check if email already exists
-        const existingEmployee = await Employee.findOne({
+        const existingEmployeeByEmail = await Employee.findOne({
             email: req.body.email,
         })
-        if (existingEmployee) {
+        if (existingEmployeeByEmail) {
             return res.status(400).json({ message: 'Email already exists' })
+        }
+
+        // Check if iqamaNumber already exists
+        const existingEmployeeByIqama = await Employee.findOne({
+            iqamaNumber: req.body.iqamaNumber,
+        })
+        if (existingEmployeeByIqama) {
+            return res.status(400).json({ message: 'Iqama number already exists' })
+        }
+
+        // Check if employeeId already exists
+        const existingEmployeeById = await Employee.findOne({
+            employeeId: req.body.employeeId,
+        })
+        if (existingEmployeeById) {
+            return res.status(400).json({ message: 'Employee ID already exists' })
         }
 
         // Validate campId if provided
@@ -163,6 +181,10 @@ router.post('/', async (req, res) => {
             lastName: req.body.lastName,
             email: req.body.email,
             phone: req.body.phone,
+            iqamaNumber: req.body.iqamaNumber,
+            employeeId: req.body.employeeId,
+            location: req.body.location,
+            project: req.body.project,
             department: req.body.department,
             designation: req.body.designation,
             employeeType: req.body.employeeType || 'Permanent',
@@ -189,8 +211,16 @@ router.post('/', async (req, res) => {
         res.status(201).json(newEmployee)
     } catch (err) {
         if (err.code === 11000) {
-            // Duplicate key error (email)
-            return res.status(400).json({ message: 'Email already exists' })
+            // Duplicate key error
+            const field = Object.keys(err.keyPattern)[0]
+            if (field === 'email') {
+                return res.status(400).json({ message: 'Email already exists' })
+            } else if (field === 'iqamaNumber') {
+                return res.status(400).json({ message: 'Iqama number already exists' })
+            } else if (field === 'employeeId') {
+                return res.status(400).json({ message: 'Employee ID already exists' })
+            }
+            return res.status(400).json({ message: 'Duplicate field value' })
         }
         res.status(400).json({ message: err.message })
     }
@@ -225,6 +255,34 @@ router.patch('/:id', getEmployee, async (req, res) => {
         }
         if (req.body.phone != null) {
             employee.phone = req.body.phone
+        }
+        if (req.body.iqamaNumber != null) {
+            // Check if iqamaNumber already exists (excluding current employee)
+            const existingEmployeeByIqama = await Employee.findOne({
+                iqamaNumber: req.body.iqamaNumber,
+                _id: { $ne: employee._id },
+            })
+            if (existingEmployeeByIqama) {
+                return res.status(400).json({ message: 'Iqama number already exists' })
+            }
+            employee.iqamaNumber = req.body.iqamaNumber
+        }
+        if (req.body.employeeId != null) {
+            // Check if employeeId already exists (excluding current employee)
+            const existingEmployeeById = await Employee.findOne({
+                employeeId: req.body.employeeId,
+                _id: { $ne: employee._id },
+            })
+            if (existingEmployeeById) {
+                return res.status(400).json({ message: 'Employee ID already exists' })
+            }
+            employee.employeeId = req.body.employeeId
+        }
+        if (req.body.location != null) {
+            employee.location = req.body.location
+        }
+        if (req.body.project != null) {
+            employee.project = req.body.project
         }
         if (req.body.department != null) {
             employee.department = req.body.department
@@ -285,7 +343,16 @@ router.patch('/:id', getEmployee, async (req, res) => {
         res.json(updatedEmployee)
     } catch (err) {
         if (err.code === 11000) {
-            return res.status(400).json({ message: 'Email already exists' })
+            // Duplicate key error
+            const field = Object.keys(err.keyPattern)[0]
+            if (field === 'email') {
+                return res.status(400).json({ message: 'Email already exists' })
+            } else if (field === 'iqamaNumber') {
+                return res.status(400).json({ message: 'Iqama number already exists' })
+            } else if (field === 'employeeId') {
+                return res.status(400).json({ message: 'Employee ID already exists' })
+            }
+            return res.status(400).json({ message: 'Duplicate field value' })
         }
         res.status(400).json({ message: err.message })
     }

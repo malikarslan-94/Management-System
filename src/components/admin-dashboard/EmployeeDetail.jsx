@@ -111,6 +111,22 @@ const EmployeeDetail = ({ employee, onClose }) => {
                                         {employee.department || 'N/A'}
                                     </p>
                                 </div>
+                                <div>
+                                    <span className="text-sm font-medium text-gray-500">
+                                        Iqama Number:
+                                    </span>
+                                    <p className="text-sm text-gray-900">
+                                        {employee.iqamaNumber || 'N/A'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-sm font-medium text-gray-500">
+                                        Employee ID:
+                                    </span>
+                                    <p className="text-sm text-gray-900">
+                                        {employee.employeeId || 'N/A'}
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
@@ -169,6 +185,22 @@ const EmployeeDetail = ({ employee, onClose }) => {
                                               'string'
                                                   ? employee.currentRoomId
                                                   : 'Not assigned')}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-sm font-medium text-gray-500">
+                                        Location:
+                                    </span>
+                                    <p className="text-sm text-gray-900">
+                                        {employee.location || 'N/A'}
+                                    </p>
+                                </div>
+                                <div>
+                                    <span className="text-sm font-medium text-gray-500">
+                                        Project:
+                                    </span>
+                                    <p className="text-sm text-gray-900">
+                                        {employee.project || 'N/A'}
                                     </p>
                                 </div>
                             </div>

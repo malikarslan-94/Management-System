@@ -14,7 +14,6 @@ import { useRooms } from '@/hooks/useRooms'
 import type { Employee } from '@/services/EmployeeService'
 import { ColumnDef } from '@tanstack/react-table'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
     HiOutlineCalendar,
     HiOutlineCheckCircle,
@@ -28,6 +27,7 @@ import {
     HiOutlineUsers,
     HiOutlineX,
 } from 'react-icons/hi'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 type TabType = 'all' | 'visitors'
 
@@ -85,6 +85,17 @@ const EmployeeManagement = () => {
     const { camps, fetchCamps } = useCamps()
     const { rooms, fetchRooms } = useRooms()
 
+    // Extract unique locations from camps
+    const locations = useMemo(() => {
+        const locationSet = new Set<string>()
+        camps?.forEach((camp) => {
+            if (camp.location) {
+                locationSet.add(camp.location)
+            }
+        })
+        return Array.from(locationSet).sort()
+    }, [camps])
+
     // Initial data fetch
     useEffect(() => {
         fetchCamps()
@@ -103,9 +114,23 @@ const EmployeeManagement = () => {
             
             // If type is visitor, set employeeType to Visitor
             if (type === 'visitor') {
-                setFormData({ employeeType: 'Visitor', status: 'Active' })
+                setFormData({ 
+                    employeeType: 'Visitor', 
+                    status: 'Active',
+                    iqamaNumber: '',
+                    employeeId: '',
+                    location: '',
+                    project: '',
+                })
             } else {
-                setFormData({ employeeType: 'Permanent', status: 'Active' })
+                setFormData({ 
+                    employeeType: 'Permanent', 
+                    status: 'Active',
+                    iqamaNumber: '',
+                    employeeId: '',
+                    location: '',
+                    project: '',
+                })
             }
             
             setIsModalOpen(true)
@@ -239,24 +264,22 @@ const EmployeeManagement = () => {
                 },
             },
             {
-                header: 'Type',
-                accessorKey: 'employeeType',
-                cell: ({ row }) => {
-                    const type = row.original.employeeType || 'Permanent'
-                    const colorMap = {
-                        Permanent:
-                            'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-300',
-                        Temporary:
-                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-300',
-                        Visitor:
-                            'bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-300',
-                    }
-                    return (
-                        <Badge className={colorMap[type] || colorMap.Permanent}>
-                            {type}
-                        </Badge>
-                    )
-                },
+                header: 'Employee ID',
+                accessorKey: 'employeeId',
+                cell: ({ row }) => (
+                    <span className="text-gray-900 dark:text-gray-100">
+                        {row.original.employeeId || '-'}
+                    </span>
+                ),
+            },
+            {
+                header: 'Iqama Number',
+                accessorKey: 'iqamaNumber',
+                cell: ({ row }) => (
+                    <span className="text-gray-900 dark:text-gray-100">
+                        {row.original.iqamaNumber || '-'}
+                    </span>
+                ),
             },
             {
                 header: 'Department',
@@ -312,25 +335,6 @@ const EmployeeManagement = () => {
                         <span className="text-gray-900 dark:text-gray-100">
                             {roomNumber}
                         </span>
-                    )
-                },
-            },
-            {
-                header: 'Status',
-                accessorKey: 'status',
-                cell: ({ row }) => {
-                    const status = row.original.status || 'Inactive'
-                    const colorMap = {
-                        Active: 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-300',
-                        Inactive:
-                            'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300',
-                    }
-                    return (
-                        <Badge
-                            className={colorMap[status] || colorMap.Inactive}
-                        >
-                            {status}
-                        </Badge>
                     )
                 },
             },
@@ -399,6 +403,10 @@ const EmployeeManagement = () => {
             lastName: '',
             email: '',
             phone: '',
+            iqamaNumber: '',
+            employeeId: '',
+            location: '',
+            project: '',
             department: '',
             designation: '',
             employeeType: 'Permanent',
@@ -435,6 +443,8 @@ const EmployeeManagement = () => {
                 case 'email':
                 case 'phone':
                 case 'employeeType':
+                case 'iqamaNumber':
+                case 'employeeId':
                     if (!value?.toString().trim()) errs[name] = 'Required'
                     else if (
                         name === 'email' &&
@@ -461,7 +471,19 @@ const EmployeeManagement = () => {
 
     const handleSelectChange = (name: string) => (e: any) => {
         const value = e?.target?.value ?? e
-        setFormData((prev: any) => ({ ...prev, [name]: value }))
+        setFormData((prev: any) => {
+            const newData = { ...prev, [name]: value }
+            // If location changes, clear camp and room selections
+            if (name === 'location') {
+                newData.campId = ''
+                newData.currentRoomId = null
+            }
+            // If camp changes, clear room selection
+            if (name === 'campId') {
+                newData.currentRoomId = null
+            }
+            return newData
+        })
         validateField(name, value)
     }
 
@@ -472,6 +494,8 @@ const EmployeeManagement = () => {
             'email',
             'phone',
             'employeeType',
+            'iqamaNumber',
+            'employeeId',
         ]
         return fields.every((field) => validateField(field, formData[field]))
     }, [formData, validateField])
@@ -500,6 +524,10 @@ const EmployeeManagement = () => {
                 lastName: formData.lastName,
                 email: formData.email,
                 phone: formData.phone,
+                iqamaNumber: formData.iqamaNumber,
+                employeeId: formData.employeeId,
+                location: formData.location?.trim() || undefined,
+                project: formData.project?.trim() || undefined,
                 department: formData.department?.trim() || undefined,
                 designation: formData.designation?.trim() || undefined,
                 employeeType: formData.employeeType || 'Permanent',
@@ -862,6 +890,7 @@ const EmployeeManagement = () => {
                             errors={errors}
                             camps={camps}
                             rooms={rooms}
+                            locations={locations}
                             handleInputChange={handleInputChange}
                             handleSelectChange={handleSelectChange}
                             validateField={validateField}
@@ -951,6 +980,24 @@ const EmployeeManagement = () => {
                                                 'N/A'}
                                         </p>
                                     </div>
+                                    <div>
+                                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                            Iqama Number:
+                                        </span>
+                                        <p className="text-sm text-gray-900 dark:text-gray-100">
+                                            {selectedEmployee.iqamaNumber ||
+                                                'N/A'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                            Employee ID:
+                                        </span>
+                                        <p className="text-sm text-gray-900 dark:text-gray-100">
+                                            {selectedEmployee.employeeId ||
+                                                'N/A'}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1025,6 +1072,23 @@ const EmployeeManagement = () => {
                                                   'string'
                                                       ? selectedEmployee.currentRoomId
                                                       : 'Not assigned')}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                            Location:
+                                        </span>
+                                        <p className="text-sm text-gray-900 dark:text-gray-100">
+                                            {selectedEmployee.location ||
+                                                'N/A'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                            Project:
+                                        </span>
+                                        <p className="text-sm text-gray-900 dark:text-gray-100">
+                                            {selectedEmployee.project || 'N/A'}
                                         </p>
                                     </div>
                                 </div>

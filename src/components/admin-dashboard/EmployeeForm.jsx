@@ -8,6 +8,7 @@ const EmployeeForm = ({
     errors,
     camps,
     rooms,
+    locations,
     handleInputChange,
     handleSelectChange,
     validateField,
@@ -23,6 +24,13 @@ const EmployeeForm = ({
         { value: 'Active', label: 'Active' },
         { value: 'Inactive', label: 'Inactive' },
     ]
+
+    // Filter camps by selected location
+    const availableCamps = formData.location
+        ? camps.filter(
+              (camp) => camp.location === formData.location,
+          )
+        : []
 
     // Filter rooms by selected camp
     const availableRooms = formData.campId
@@ -104,6 +112,82 @@ const EmployeeForm = ({
             </FormItem>
 
             <div className="grid grid-cols-2 gap-4">
+                <FormItem label="Iqama Number" required>
+                    <Input
+                        name="iqamaNumber"
+                        value={formData.iqamaNumber || ''}
+                        onChange={handleInputChange}
+                        onBlur={(e) =>
+                            validateField('iqamaNumber', e.target.value)
+                        }
+                        className={`w-full ${getClass('iqamaNumber')}`}
+                        placeholder="Enter iqama number"
+                    />
+                    {errors.iqamaNumber && (
+                        <div className="text-xs text-red-600">
+                            {errors.iqamaNumber}
+                        </div>
+                    )}
+                </FormItem>
+
+                <FormItem label="Employee ID" required>
+                    <Input
+                        name="employeeId"
+                        value={formData.employeeId || ''}
+                        onChange={handleInputChange}
+                        onBlur={(e) =>
+                            validateField('employeeId', e.target.value)
+                        }
+                        className={`w-full ${getClass('employeeId')}`}
+                        placeholder="Enter employee ID"
+                    />
+                    {errors.employeeId && (
+                        <div className="text-xs text-red-600">
+                            {errors.employeeId}
+                        </div>
+                    )}
+                </FormItem>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <FormItem label="Location">
+                    <Select
+                        value={
+                            locations
+                                .map((loc) => ({ value: loc, label: loc }))
+                                .find(
+                                    (opt) => opt.value === formData.location,
+                                ) || null
+                        }
+                        onChange={(selected) =>
+                            handleSelectChange('location')({
+                                target: {
+                                    value: selected ? selected.value : '',
+                                },
+                            })
+                        }
+                        options={locations.map((loc) => ({
+                            value: loc,
+                            label: loc,
+                        }))}
+                        placeholder="Select location (optional)"
+                        classNamePrefix="react-select"
+                        isClearable
+                    />
+                </FormItem>
+
+                <FormItem label="Project">
+                    <Input
+                        name="project"
+                        value={formData.project || ''}
+                        onChange={handleInputChange}
+                        className="w-full"
+                        placeholder="Enter project name"
+                    />
+                </FormItem>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
                 <FormItem label="Department">
                     <Input
                         name="department"
@@ -177,7 +261,7 @@ const EmployeeForm = ({
             <FormItem label="Camp">
                 <Select
                     value={
-                        camps
+                        availableCamps
                             .map((c) => ({ value: c._id, label: c.name }))
                             .find(
                                 (opt) =>
@@ -193,14 +277,24 @@ const EmployeeForm = ({
                             target: { value: selected ? selected.value : '' },
                         })
                     }
-                    options={camps.map((c) => ({
+                    options={availableCamps.map((c) => ({
                         value: c._id,
                         label: c.name,
                     }))}
-                    placeholder="Select a camp (optional)"
+                    placeholder={
+                        formData.location
+                            ? 'Select a camp (optional)'
+                            : 'Select a location first'
+                    }
                     classNamePrefix="react-select"
                     isClearable
+                    isDisabled={!formData.location}
                 />
+                {!formData.location && (
+                    <div className="text-xs text-gray-500 mt-1">
+                        Please select a location first to assign a camp
+                    </div>
+                )}
             </FormItem>
 
             <FormItem label="Current Room">

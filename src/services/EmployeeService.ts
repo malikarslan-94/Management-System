@@ -4,6 +4,10 @@ export interface Employee {
     lastName: string
     email: string
     phone: string
+    iqamaNumber: string
+    employeeId: string
+    location?: string
+    project?: string
     department?: string
     designation?: string
     employeeType: 'Permanent' | 'Temporary' | 'Visitor'
@@ -42,6 +46,10 @@ export interface CreateEmployeeData {
     lastName: string
     email: string
     phone: string
+    iqamaNumber: string
+    employeeId: string
+    location?: string
+    project?: string
     department?: string
     designation?: string
     employeeType?: 'Permanent' | 'Temporary' | 'Visitor'
