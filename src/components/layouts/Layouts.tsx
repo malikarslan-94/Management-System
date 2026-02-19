@@ -1,5 +1,6 @@
 import { useMemo, lazy, Suspense } from 'react'
 import Loading from '@/components/shared/Loading'
+import AskAIWidget from '@/components/shared/AskAIWidget'
 import { useAppSelector } from '@/store'
 import {
     LAYOUT_TYPE_CLASSIC,
@@ -39,15 +40,18 @@ const Layout = () => {
     }, [layoutType, authenticated])
 
     return (
-        <Suspense
-            fallback={
-                <div className="flex flex-auto flex-col h-[100vh]">
-                    <Loading loading={true} />
-                </div>
-            }
-        >
-            <AppLayout />
-        </Suspense>
+        <>
+            <Suspense
+                fallback={
+                    <div className="flex flex-auto flex-col h-[100vh]">
+                        <Loading loading={true} />
+                    </div>
+                }
+            >
+                <AppLayout />
+            </Suspense>
+            {authenticated && <AskAIWidget />}
+        </>
     )
 }
 
