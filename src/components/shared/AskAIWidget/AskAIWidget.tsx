@@ -3,10 +3,11 @@ import Card from '@/components/ui/Card'
 import CloseButton from '@/components/ui/CloseButton'
 import { useConfig } from '@/components/ui/ConfigProvider'
 import Input from '@/components/ui/Input'
-import ScrollBar from '@/components/ui/ScrollBar'
+import mcpService from '@/services/mcpService'
 import classNames from 'classnames'
 import { AnimatePresence, motion, useAnimation } from 'framer-motion'
 import React, { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import {
     HiOutlineChat,
     HiOutlinePaperAirplane,
@@ -91,27 +92,74 @@ const AskAIWidget: React.FC<AskAIWidgetProps> = ({
         }
 
         setMessages((prev) => [...prev, userMessage])
+        const messageToSend = inputValue.trim()
         setInputValue('')
         setIsLoading(true)
 
+        console.log('[FE] send:', messageToSend.slice(0, 60))
+
         try {
-            const response = onSendMessage
-                ? await onSendMessage(userMessage.content)
-                : await simulateAIResponse(userMessage.content)
+            let response: string
+
+            if (onSendMessage) {
+                response = await onSendMessage(messageToSend)
+            } else {
+                try {
+                    response = await mcpService.sendMessage(messageToSend)
+                    console.log('[FE] received:', response?.slice(0, 60) ?? '')
+                } catch (mcpError) {
+                    const serverMessage = (mcpError instanceof Error ? mcpError.message : String(mcpError)) || 'Something went wrong. Please try again.'
+                    console.log('[FE] MCP error:', serverMessage.slice(0, 60))
+                    const isConnectionError = /unable to connect|failed to send|network|timeout/i.test(serverMessage)
+                    if (isConnectionError) {
+                        try {
+                            response = await simulateAIResponse(messageToSend)
+                        } catch {
+                            response = 'I\'m having trouble connecting. Please check the connection and try again.'
+                        }
+                    } else {
+                        response = serverMessage.trim() || 'Something went wrong. Please try again.'
+                    }
+                }
+            }
+
+            const displayContent =
+                typeof response === 'string' && response.trim()
+                    ? response.trim()
+                    : 'Sorry, I couldn\'t get a response. Please try again.'
+
+            console.log('[Chat] response reached chat section', {
+                length: displayContent.length,
+                preview: displayContent.slice(0, 80),
+            })
 
             const aiMessage: Message = {
                 id: `ai-${Date.now()}`,
                 type: 'ai',
-                content: response,
+                content: displayContent,
                 timestamp: new Date(),
             }
-            setMessages((prev) => [...prev, aiMessage])
+            console.log('[Chat] adding AI message to state')
+            flushSync(() => {
+                setMessages((prev) => {
+                    const next = [...prev, aiMessage]
+                    console.log('[Chat] setMessages called, prevLen=', prev.length, 'nextLen=', next.length)
+                    return next
+                })
+            })
+            console.log('[Chat] flushSync done, next render should show', messages.length + 1, 'messages')
+            requestAnimationFrame(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+            })
             if (!isOpen) setHasNewMessage(true)
-        } catch {
+        } catch (error) {
+            const fallback = 'Sorry, I encountered an error. Please try again.'
+            const content =
+                (error instanceof Error ? error.message : null)?.trim() || fallback
             const errorMessage: Message = {
                 id: `error-${Date.now()}`,
                 type: 'ai',
-                content: 'Sorry, I encountered an error. Please try again.',
+                content: content || fallback,
                 timestamp: new Date(),
             }
             setMessages((prev) => [...prev, errorMessage])
@@ -259,7 +307,10 @@ const AskAIWidget: React.FC<AskAIWidgetProps> = ({
                         transition={{ type: 'spring', stiffness: 380, damping: 28 }}
                         className="fixed bottom-6 ltr:right-6 rtl:left-6 z-50 w-[400px] max-w-[calc(100vw-3rem)]"
                     >
-                        <Card className="shadow-2xl h-[600px] max-h-[calc(100vh-6rem)] flex flex-col overflow-hidden">
+                        <Card
+                            className="shadow-2xl h-[600px] max-h-[calc(100vh-6rem)] flex flex-col overflow-hidden"
+                            bodyClass="flex flex-col flex-1 min-h-0 overflow-hidden p-0"
+                        >
                             {/* Header */}
                             <div className={`bg-${themeColor}-${primaryColorLevel} px-4 py-3 flex items-center justify-between`}>
                                 <div className="flex items-center gap-2.5">
@@ -282,10 +333,13 @@ const AskAIWidget: React.FC<AskAIWidgetProps> = ({
                                 />
                             </div>
 
-                            {/* Messages Area */}
-                            <div className="flex-1 overflow-hidden p-0">
-                                <ScrollBar className="h-full">
-                                    <div className="px-4 py-4 space-y-4 min-h-full">
+                            {/* Messages Area - scrollable */}
+                            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-0">
+                                <div className="px-4 py-4 space-y-4">
+                                        {(() => {
+                                            console.log('[Chat] render messages area', { messagesLength: messages.length, isOpen })
+                                            return null
+                                        })()}
                                         {messages.length === 0 ? (
                                             <motion.div
                                                 initial={{ opacity: 0, y: 10 }}
@@ -343,7 +397,7 @@ const AskAIWidget: React.FC<AskAIWidgetProps> = ({
                                                         )}
                                                     >
                                                         <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                                                            {message.content}
+                                                            {message.content || '\u00A0'}
                                                         </p>
                                                         <span
                                                             className={classNames(
@@ -386,7 +440,6 @@ const AskAIWidget: React.FC<AskAIWidgetProps> = ({
 
                                         <div ref={messagesEndRef} />
                                     </div>
-                                </ScrollBar>
                             </div>
 
                             {/* Input Section */}

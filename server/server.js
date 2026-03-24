@@ -17,6 +17,12 @@ app.use(morgan('combined'))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
+// Log API requests (frontend/MCP → backend)
+app.use('/api', (req, res, next) => {
+    console.log('[API]', req.method, req.path)
+    next()
+})
+
 // MongoDB Connection
 mongoose
     .connect(process.env.MONGODB_URI, {
