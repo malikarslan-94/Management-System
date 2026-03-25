@@ -1,8 +1,16 @@
 import { AdaptableCard, Chart } from '@/components/shared'
 import { Avatar, Badge, Button, Spinner } from '@/components/ui'
 import { useCamps } from '@/hooks/useCamps'
+import { useEmployees } from '@/hooks/useEmployees'
+import { useRoomAssignments } from '@/hooks/useRoomAssignments'
 import { useRooms } from '@/hooks/useRooms'
-import { useEffect, useState } from 'react'
+import { getRooms } from '@/services/RoomService'
+import type { RoomAssignment } from '@/services/RoomAssignmentService'
+import {
+    readStoredMaintenanceRequests,
+    summarizeRequestStats,
+} from '@/utils/maintenanceRequestStorage'
+import { type ComponentType, useEffect, useMemo, useState } from 'react'
 import {
     HiOutlineClipboardList,
     HiOutlineCog,
@@ -16,24 +24,125 @@ import {
 } from 'react-icons/hi'
 import { Link, useNavigate } from 'react-router-dom'
 
+function formatRelativeTime(iso: string | undefined): string {
+    if (!iso) return '—'
+    const then = new Date(iso).getTime()
+    const now = Date.now()
+    const diffMs = Math.max(0, now - then)
+    const mins = Math.floor(diffMs / 60000)
+    const hours = Math.floor(mins / 60)
+    const days = Math.floor(hours / 24)
+    if (days > 0) return `${days} day${days === 1 ? '' : 's'} ago`
+    if (hours > 0) return `${hours} hour${hours === 1 ? '' : 's'} ago`
+    if (mins > 0) return `${mins} min ago`
+    return 'Just now'
+}
+
+function getRoomLabel(a: RoomAssignment): string {
+    const r = a.roomId
+    if (r && typeof r === 'object' && 'roomNumber' in r) {
+        return r.roomNumber || '—'
+    }
+    return '—'
+}
+
+function getOccupantName(a: RoomAssignment): string {
+    const d = a.occupantDetails
+    if (d?.firstName || d?.lastName) {
+        return [d.firstName, d.lastName].filter(Boolean).join(' ') || 'Occupant'
+    }
+    return a.occupantType === 'Temporary Visitor'
+        ? 'Visitor'
+        : 'Employee'
+}
+
 const Home = () => {
     const navigate = useNavigate()
-    // Hooks
+
+    const employeeFilters = useMemo(
+        () => ({ page: 1, limit: 1 }),
+        [],
+    )
+    const assignmentFilters = useMemo(
+        () => ({ page: 1, limit: 10 }),
+        [],
+    )
+
     const { camps, loading: campsLoading, error: campsError } = useCamps()
     const { rooms, loading: roomsLoading, error: roomsError } = useRooms()
+    const {
+        pagination: employeePagination,
+        loading: employeesLoading,
+        error: employeesError,
+    } = useEmployees(employeeFilters)
+    const {
+        assignments,
+        loading: assignmentsLoading,
+        error: assignmentsError,
+    } = useRoomAssignments(assignmentFilters)
 
-    // Local loading & error
+    const [roomsInMaintenance, setRoomsInMaintenance] = useState(0)
+    const [maintStatsVersion, setMaintStatsVersion] = useState(0)
+
+    useEffect(() => {
+        let cancelled = false
+        getRooms().then((list) => {
+            if (cancelled) return
+            setRoomsInMaintenance(
+                list.filter((r) => r.status === 'maintenance').length,
+            )
+        })
+        return () => {
+            cancelled = true
+        }
+    }, [rooms])
+
+    useEffect(() => {
+        const onStorage = (e: StorageEvent) => {
+            if (e.key === 'campwise_maintenance_requests_v1') {
+                setMaintStatsVersion((v) => v + 1)
+            }
+        }
+        window.addEventListener('storage', onStorage)
+        return () => window.removeEventListener('storage', onStorage)
+    }, [])
+
+    const maintenanceRequestStats = useMemo(() => {
+        void maintStatsVersion
+        return summarizeRequestStats(readStoredMaintenanceRequests())
+    }, [maintStatsVersion])
+
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
-        if (campsLoading || roomsLoading) {
+        if (
+            campsLoading ||
+            roomsLoading ||
+            employeesLoading ||
+            assignmentsLoading
+        ) {
             setIsLoading(true)
         } else {
             setIsLoading(false)
-            setError(campsError || roomsError || null)
+            setError(
+                campsError ||
+                    roomsError ||
+                    employeesError ||
+                    assignmentsError ||
+                    null,
+            )
         }
-    }, [campsLoading, roomsLoading, campsError, roomsError])
+    }, [
+        campsLoading,
+        roomsLoading,
+        employeesLoading,
+        assignmentsLoading,
+        campsError,
+        roomsError,
+        employeesError,
+        assignmentsError,
+    ])
 
     if (isLoading) {
         return (
@@ -49,10 +158,9 @@ const Home = () => {
         )
     }
 
-    // Stats calculation - using CAMPS data for room counts (not Room documents)
     const campsArray = Array.isArray(camps) ? camps : []
+    const roomsArray = Array.isArray(rooms) ? rooms : []
 
-    // Calculate total rooms from camps data
     const totalRoomsFromCamps = campsArray.reduce(
         (sum, camp) => sum + (camp.totalRooms || 0),
         0,
@@ -61,24 +169,32 @@ const Home = () => {
         (sum, camp) => sum + (camp.occupiedRooms || 0),
         0,
     )
-    const availableRoomsFromCamps = totalRoomsFromCamps - occupiedRoomsFromCamps
+
+    const occupiedFromDocuments = roomsArray.filter(
+        (r) => r.isAvailable === false,
+    ).length
+    const totalRoomsDocuments = roomsArray.length
+
+    const occupancyRate =
+        totalRoomsDocuments > 0
+            ? Math.round((occupiedFromDocuments / totalRoomsDocuments) * 100)
+            : totalRoomsFromCamps > 0
+              ? Math.round(
+                    (occupiedRoomsFromCamps / totalRoomsFromCamps) * 100,
+                )
+              : 0
 
     const stats = {
         totalCamps: campsArray.length,
-        totalRooms: totalRoomsFromCamps, // From camps data, not Room documents
-        totalEmployees: 0,
-        occupancyRate:
-            totalRoomsFromCamps > 0
-                ? Math.round(
-                      (occupiedRoomsFromCamps / totalRoomsFromCamps) * 100,
-                  )
-                : 0,
-        roomsUnderRepair: 8,
-        lowInventoryItems: 5,
-        activeMaintenance: 12,
+        totalRooms:
+            totalRoomsDocuments > 0 ? totalRoomsDocuments : totalRoomsFromCamps,
+        totalEmployees: employeePagination?.total ?? 0,
+        occupancyRate,
+        roomsUnderRepair: roomsInMaintenance,
+        maintenanceRequestsTotal: maintenanceRequestStats.total,
+        urgentMaintenanceRequests: maintenanceRequestStats.urgent,
     }
 
-    // Occupancy chart data
     const occupancyData = {
         series: [stats.occupancyRate, 100 - stats.occupancyRate],
         options: {
@@ -89,65 +205,68 @@ const Home = () => {
         },
     }
 
-    // Upcoming checkouts - using rooms data if available, otherwise show camp-based info
-    const roomsArray = Array.isArray(rooms) ? rooms : []
-    const upcomingCheckouts =
-        roomsArray.length > 0
-            ? roomsArray
-                  .filter((r) => !r.isAvailable)
-                  .slice(0, 4)
-                  .map((room, idx) => ({
-                      id: idx,
-                      name: 'Occupied',
-                      room:
-                          room.roomNumber ||
-                          `Room ${room._id?.substring(0, 4) || ''}`,
-                      date: 'N/A',
-                      avatar: 'OC',
-                  }))
-            : campsArray
-                  .filter((c) => (c.occupiedRooms || 0) > 0)
-                  .slice(0, 4)
-                  .map((camp, idx) => ({
-                      id: idx,
-                      name: 'Camp Occupied',
-                      room: camp.name,
-                      date: 'N/A',
-                      avatar: 'OC',
-                  }))
+    const now = new Date()
+    const twoDaysFromNow = new Date(now)
+    twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2)
 
-    // Recent assignments (dummy)
-    const recentAssignments = [
-        {
-            id: 1,
-            employee: 'David Lee',
-            task: 'Room Cleaning',
-            room: 'A-105',
-            time: '2 hours ago',
-        },
-        {
-            id: 2,
-            employee: 'Emma Davis',
-            task: 'Maintenance Check',
-            room: 'B-201',
-            time: '4 hours ago',
-        },
-        {
-            id: 3,
-            employee: 'Tom Wilson',
-            task: 'Security Round',
-            area: 'Block C',
-            time: '6 hours ago',
-        },
-    ]
+    const upcomingCheckouts = (Array.isArray(assignments) ? assignments : [])
+        .filter((a) => a.status === 'active' && a.expectedCheckoutDate)
+        .filter((a) => {
+            const end = new Date(a.expectedCheckoutDate)
+            return end >= now && end <= twoDaysFromNow
+        })
+        .slice(0, 6)
+        .map((a, idx) => {
+            const roomNum = getRoomLabel(a)
+            const name = getOccupantName(a)
+            const initials = name
+                .split(' ')
+                .map((w) => w[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase()
+            return {
+                id: a._id || `co-${idx}`,
+                name,
+                room: roomNum,
+                date: new Date(a.expectedCheckoutDate).toLocaleDateString(),
+                avatar: initials || 'OC',
+            }
+        })
 
-    // Reusable components
+    const recentAssignments = (Array.isArray(assignments) ? assignments : [])
+        .slice(0, 6)
+        .map((a) => ({
+            id: a._id || a.startDate,
+            employee: getOccupantName(a),
+            task:
+                a.status === 'active'
+                    ? 'Room assignment'
+                    : `Assignment (${a.status})`,
+            room: getRoomLabel(a),
+            camp:
+                typeof a.roomId === 'object' &&
+                a.roomId &&
+                'camp' in a.roomId &&
+                a.roomId.camp &&
+                typeof a.roomId.camp === 'object' &&
+                'name' in a.roomId.camp
+                    ? (a.roomId.camp as { name?: string }).name
+                    : undefined,
+            time: formatRelativeTime(a.createdAt || a.startDate),
+        }))
+
     const StatCard = ({
         title,
         value,
         icon: Icon,
         color = 'text-blue-600',
-    }: any) => (
+    }: {
+        title: string
+        value: string | number
+        icon: ComponentType<{ className?: string }>
+        color?: string
+    }) => (
         <AdaptableCard className="h-full border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 p-6">
             <div className="flex items-center space-x-4">
                 <div className="p-3 rounded-full bg-white dark:bg-gray-700 shadow-sm">
@@ -170,7 +289,12 @@ const Home = () => {
         icon: Icon,
         onClick,
         color = 'bg-blue-600',
-    }: any) => (
+    }: {
+        title: string
+        icon: ComponentType<{ className?: string }>
+        onClick: () => void
+        color?: string
+    }) => (
         <Button
             className={`${color} hover:opacity-90 h-20 flex flex-col items-center justify-center space-y-2`}
             onClick={onClick}
@@ -182,17 +306,16 @@ const Home = () => {
 
     return (
         <div className="pb-6 px-6 space-y-6">
-            {/* Header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                     CampWise Dashboard
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    Welcome back! Here's what's happening at your camps today.
+                    Welcome back! Here&apos;s what&apos;s happening at your camps
+                    today.
                 </p>
             </div>
 
-            {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <StatCard
                     title="Total Camps"
@@ -214,7 +337,6 @@ const Home = () => {
                 />
             </div>
 
-            {/* Quick Actions */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-lg p-6 border border-gray-200 dark:border-gray-600">
                 <div className="mb-6">
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -224,7 +346,7 @@ const Home = () => {
                         Common tasks and shortcuts for efficient camp management
                     </p>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                     <QuickActionCard
                         title="Assign Room"
                         icon={HiOutlineHome}
@@ -240,21 +362,37 @@ const Home = () => {
                     <QuickActionCard
                         title="Add Visitor"
                         icon={HiOutlinePlus}
-                        onClick={() => navigate('/employees?action=add&type=visitor')}
+                        onClick={() =>
+                            navigate('/employees?action=add&type=visitor')
+                        }
                         color="bg-purple-600"
                     />
                     <QuickActionCard
-                        title="Maintenance Request"
+                        title="Locations & camps"
+                        icon={HiOutlineOfficeBuilding}
+                        onClick={() => navigate('/locations-camps')}
+                        color="bg-cyan-600"
+                    />
+                    <QuickActionCard
+                        title="Add camp"
+                        icon={HiOutlinePlus}
+                        onClick={() =>
+                            navigate('/locations-camps?action=add-camp')
+                        }
+                        color="bg-teal-600"
+                    />
+                    <QuickActionCard
+                        title="Maintenance"
                         icon={HiOutlineFire}
-                        onClick={() => console.log('Maintenance Request')}
+                        onClick={() =>
+                            navigate('/inventory-maintenance?tab=repair')
+                        }
                         color="bg-orange-600"
                     />
                 </div>
             </div>
 
-            {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Occupancy Chart */}
                 <div className="lg:col-span-1">
                     <AdaptableCard className="h-full border border-gray-200 dark:border-gray-700">
                         <div className="mb-4">
@@ -262,7 +400,9 @@ const Home = () => {
                                 Current Occupancy Rate
                             </h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Overall camp occupancy
+                                {totalRoomsDocuments > 0
+                                    ? 'Based on room records'
+                                    : 'Based on camp totals'}
                             </p>
                         </div>
                         <div className="flex items-center justify-center">
@@ -283,54 +423,57 @@ const Home = () => {
                     </AdaptableCard>
                 </div>
 
-                {/* Upcoming Checkouts */}
                 <div className="lg:col-span-2">
                     <AdaptableCard className="h-full border border-gray-200 dark:border-gray-700">
                         <div className="mb-4">
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                Upcoming Check-Outs
+                                Upcoming check-outs
                             </h3>
                             <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Next 2 days
+                                Active assignments ending within 2 days
                             </p>
                         </div>
                         <div className="space-y-3">
-                            {upcomingCheckouts.map((checkout) => (
-                                <div
-                                    key={checkout.id}
-                                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                                >
-                                    <div className="flex items-center space-x-3">
-                                        <Avatar className="bg-blue-600">
-                                            {checkout.avatar}
-                                        </Avatar>
-                                        <div>
-                                            <p className="font-medium text-gray-900 dark:text-gray-100">
-                                                {checkout.name}
+                            {upcomingCheckouts.length === 0 ? (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
+                                    No check-outs in the next 2 days.
+                                </p>
+                            ) : (
+                                upcomingCheckouts.map((checkout) => (
+                                    <div
+                                        key={checkout.id}
+                                        className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                                    >
+                                        <div className="flex items-center space-x-3">
+                                            <Avatar className="bg-blue-600">
+                                                {checkout.avatar}
+                                            </Avatar>
+                                            <div>
+                                                <p className="font-medium text-gray-900 dark:text-gray-100">
+                                                    {checkout.name}
+                                                </p>
+                                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                                    Room {checkout.room}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                {checkout.date}
                                             </p>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                Room {checkout.room}
-                                            </p>
+                                            <Badge className="bg-orange-100 text-orange-800">
+                                                Check-out
+                                            </Badge>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                            {checkout.date}
-                                        </p>
-                                        <Badge className="bg-orange-100 text-orange-800">
-                                            Check-out
-                                        </Badge>
-                                    </div>
-                                </div>
-                            ))}
+                                ))
+                            )}
                         </div>
                     </AdaptableCard>
                 </div>
             </div>
 
-            {/* Alert Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Rooms Under Repair */}
                 <AdaptableCard className="border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 p-6">
                     <div className="flex items-center space-x-4 mb-4">
                         <div className="p-3 rounded-full bg-white dark:bg-gray-700 shadow-sm">
@@ -338,22 +481,24 @@ const Home = () => {
                         </div>
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                Rooms Under Repair
+                                Rooms under repair
                             </h3>
                             <p className="text-2xl font-bold text-red-600">
                                 {stats.roomsUnderRepair}
                             </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Rooms with maintenance status in catalog
+                            </p>
                         </div>
                     </div>
                     <Link
-                        to="/maintenance"
+                        to="/rooms"
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                     >
-                        View Details →
+                        Room management →
                     </Link>
                 </AdaptableCard>
 
-                {/* Low Inventory Alerts */}
                 <AdaptableCard className="border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 p-6">
                     <div className="flex items-center space-x-4 mb-4">
                         <div className="p-3 rounded-full bg-white dark:bg-gray-700 shadow-sm">
@@ -361,22 +506,24 @@ const Home = () => {
                         </div>
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                Low Inventory Alerts
+                                Maintenance requests
                             </h3>
                             <p className="text-2xl font-bold text-yellow-600">
-                                {stats.lowInventoryItems}
+                                {stats.maintenanceRequestsTotal}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Submitted on this device
                             </p>
                         </div>
                     </div>
                     <Link
-                        to="/inventory"
+                        to="/inventory-maintenance?tab=repair"
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                     >
-                        View Items →
+                        Open form →
                     </Link>
                 </AdaptableCard>
 
-                {/* Active Maintenance Tasks */}
                 <AdaptableCard className="border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 p-6">
                     <div className="flex items-center space-x-4 mb-4">
                         <div className="p-3 rounded-full bg-white dark:bg-gray-700 shadow-sm">
@@ -384,55 +531,78 @@ const Home = () => {
                         </div>
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                Active Maintenance
+                                Urgent requests
                             </h3>
                             <p className="text-2xl font-bold text-blue-600">
-                                {stats.activeMaintenance}
+                                {stats.urgentMaintenanceRequests}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Marked urgent (this device)
                             </p>
                         </div>
                     </div>
                     <Link
-                        to="/maintenance/active"
+                        to="/inventory-maintenance?tab=repair"
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                     >
-                        View Tasks →
+                        View queue →
                     </Link>
                 </AdaptableCard>
             </div>
 
-            {/* Recent Assignments */}
             <AdaptableCard className="border border-gray-200 dark:border-gray-700">
-                <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                        Recent Assignments
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                        Latest employee assignments
-                    </p>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            Recent assignments
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Latest room assignments from the server
+                        </p>
+                    </div>
+                    <Button
+                        size="sm"
+                        variant="plain"
+                        onClick={() => navigate('/room-assignments')}
+                    >
+                        View all
+                    </Button>
                 </div>
                 <div className="space-y-3">
-                    {recentAssignments.map((assignment) => (
-                        <div
-                            key={assignment.id}
-                            className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg"
-                        >
-                            <div className="flex items-center space-x-3">
-                                <HiOutlineClipboardList className="w-5 h-5 text-gray-600" />
-                                <div>
-                                    <p className="font-medium text-gray-900 dark:text-gray-100">
-                                        {assignment.employee}
-                                    </p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                                        {assignment.task} -{' '}
-                                        {assignment.room || assignment.area}
-                                    </p>
+                    {recentAssignments.length === 0 ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
+                            No assignments yet. Create one from Room management
+                            or Room assignments.
+                        </p>
+                    ) : (
+                        recentAssignments.map((assignment) => (
+                            <div
+                                key={String(assignment.id)}
+                                className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-600 rounded-lg"
+                            >
+                                <div className="flex items-center space-x-3 min-w-0">
+                                    <HiOutlineClipboardList className="w-5 h-5 text-gray-600 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                                            {assignment.employee}
+                                        </p>
+                                        <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
+                                            {assignment.task}
+                                            {assignment.room
+                                                ? ` · Room ${assignment.room}`
+                                                : ''}
+                                            {assignment.camp
+                                                ? ` · ${assignment.camp}`
+                                                : ''}
+                                        </p>
+                                    </div>
                                 </div>
+                                <p className="text-xs text-gray-500 shrink-0 ml-2">
+                                    {assignment.time}
+                                </p>
                             </div>
-                            <p className="text-xs text-gray-500">
-                                {assignment.time}
-                            </p>
-                        </div>
-                    ))}
+                        ))
+                    )}
                 </div>
             </AdaptableCard>
         </div>

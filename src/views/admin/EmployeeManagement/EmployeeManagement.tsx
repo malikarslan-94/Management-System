@@ -53,6 +53,7 @@ const EmployeeManagement = () => {
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [pageIndex, setPageIndex] = useState(0)
     const [pageSize, setPageSize] = useState(10)
+    const [isSavingEmployee, setIsSavingEmployee] = useState(false)
 
     // Memoize the employee filters to prevent unnecessary re-renders
     const employeeFilters = useMemo(() => ({
@@ -507,6 +508,7 @@ const EmployeeManagement = () => {
             return
         }
 
+        setIsSavingEmployee(true)
         try {
             // Extract ID from populated objects if they exist
             const campIdValue =
@@ -555,6 +557,8 @@ const EmployeeManagement = () => {
             fetchEmployees()
         } catch (error) {
             console.error('Error saving employee:', error)
+        } finally {
+            setIsSavingEmployee(false)
         }
     }
 
@@ -910,7 +914,12 @@ const EmployeeManagement = () => {
                         >
                             Cancel
                         </Button>
-                        <Button variant="solid" onClick={handleSubmit}>
+                        <Button
+                            variant="solid"
+                            onClick={handleSubmit}
+                            loading={isSavingEmployee}
+                            disabled={isSavingEmployee}
+                        >
                             {isEditing ? 'Update' : 'Create'} Employee
                         </Button>
                     </div>

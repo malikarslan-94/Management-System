@@ -1,6 +1,7 @@
 {
     "nav": {
         "home": "Home",
+        "inventoryMaintenance": "Inventory & maintenance",
         "singleMenuItem": "Single menu item",
         "collapseMenu": {
             "collapseMenu": "Collapse menu item",

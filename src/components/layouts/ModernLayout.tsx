@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { toggleAdminPanel } from '@/store/theme/themeSlice'
 import Header from '@/components/template/Header'
@@ -17,6 +17,7 @@ import { Button } from '@/components/ui'
 
 const HeaderActionsStart = () => {
     const dispatch = useAppDispatch()
+    const navigate = useNavigate()
     const adminPanelOpen = useAppSelector(
         (state) => state.theme.adminPanelOpen
     )
@@ -25,7 +26,15 @@ const HeaderActionsStart = () => {
             <MobileNav />
             <SideNavToggle />
             <Button
-                title='Admin Panel'
+                title="Locations & camps"
+                variant="plain"
+                className="transition-all duration-200 hidden sm:inline-flex"
+                onClick={() => navigate('/locations-camps')}
+            >
+                Locations
+            </Button>
+            <Button
+                title="Admin Panel"
                 variant={adminPanelOpen ? 'solid' : 'plain'}
                 onClick={() => dispatch(toggleAdminPanel())}
                 className="transition-all duration-200"

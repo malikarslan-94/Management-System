@@ -8,7 +8,6 @@ import Drawer from '@/components/ui/Drawer'
 import Input from '@/components/ui/Input'
 import { Select } from '@/components/ui/select'
 import { FormContainer, FormItem } from '@/components/ui'
-import { Notification, toast } from '@/components/ui'
 import { useCamps } from '@/hooks/useCamps'
 import { useEmployees } from '@/hooks/useEmployees'
 import { useRooms } from '@/hooks/useRooms'
@@ -61,6 +60,8 @@ const RoomAssignments = () => {
         expectedCheckoutDate: '',
     })
     const [assignErrors, setAssignErrors] = useState<Record<string, string>>({})
+    const [assignSubmitting, setAssignSubmitting] = useState(false)
+    const [checkoutBusyId, setCheckoutBusyId] = useState<string | null>(null)
     const [pageIndex, setPageIndex] = useState(0)
     const [pageSize, setPageSize] = useState(10)
 
@@ -330,6 +331,13 @@ const RoomAssignments = () => {
                                     onClick={() => handleCheckout(assignment._id!)}
                                     color="green-600"
                                     title="Checkout"
+                                    loading={
+                                        checkoutBusyId === assignment._id
+                                    }
+                                    disabled={Boolean(
+                                        checkoutBusyId &&
+                                            checkoutBusyId !== assignment._id,
+                                    )}
                                 />
                             )}
                         </div>
@@ -337,7 +345,7 @@ const RoomAssignments = () => {
                 },
             },
         ],
-        [],
+        [checkoutBusyId],
     )
 
     // Handle assign form input change
@@ -390,6 +398,7 @@ const RoomAssignments = () => {
     const handleAssignRoom = async () => {
         if (!validateAssignForm()) return
 
+        setAssignSubmitting(true)
         try {
             await assignRoom(assignFormData)
             setIsAssignModalOpen(false)
@@ -405,6 +414,8 @@ const RoomAssignments = () => {
             fetchRooms() // Refresh rooms to update availability
         } catch (error) {
             console.error('Error assigning room:', error)
+        } finally {
+            setAssignSubmitting(false)
         }
     }
 
@@ -417,6 +428,7 @@ const RoomAssignments = () => {
         )
             return
 
+        setCheckoutBusyId(assignmentId)
         try {
             await checkoutRoom({
                 assignmentId,
@@ -430,6 +442,8 @@ const RoomAssignments = () => {
             }
         } catch (error) {
             console.error('Error checking out room:', error)
+        } finally {
+            setCheckoutBusyId(null)
         }
     }
 
@@ -940,7 +954,9 @@ const RoomAssignments = () => {
                         <Button
                             variant="solid"
                             onClick={handleAssignRoom}
+                            loading={assignSubmitting}
                             disabled={
+                                assignSubmitting ||
                                 getAvailableOccupants().length === 0 ||
                                 getAvailableRooms().length === 0
                             }

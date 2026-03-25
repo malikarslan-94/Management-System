@@ -1,8 +1,8 @@
 import { cloneElement } from 'react'
-import Avatar from '@/components/ui/Avatar'
 import Logo from '@/components/template/Logo'
 import { APP_NAME } from '@/constants/app.constant'
 import type { CommonProps } from '@/@types/common'
+import { HiOutlineOfficeBuilding } from 'react-icons/hi'
 
 interface SideProps extends CommonProps {
     content?: React.ReactNode
@@ -19,23 +19,23 @@ const Side = ({ children, content, ...rest }: SideProps) => {
             >
                 <Logo mode="dark" />
                 <div>
-                    <div className="mb-6 flex items-center gap-4">
-                        <Avatar
-                            className="border-2 border-white"
-                            shape="circle"
-                            src="/img/avatars/thumb-10.jpg"
-                        />
+                    <div className="mb-6 flex items-start gap-4">
+                        <div className="rounded-full bg-white/10 p-4 shrink-0">
+                            <HiOutlineOfficeBuilding className="w-8 h-8 text-white" />
+                        </div>
                         <div className="text-white">
-                            <div className="font-semibold text-base">
-                                Brittany Hale
+                            <div className="font-semibold text-xl leading-snug">
+                                Welcome to {APP_NAME}
                             </div>
-                            <span className="opacity-80">CTO, Onward</span>
+                            <span className="opacity-90 text-base block mt-1">
+                                Camp & facility operations
+                            </span>
                         </div>
                     </div>
-                    <p className="text-lg text-white opacity-80">
-                        Elstar comes with a complete set of UI components
-                        crafted with Tailwind CSS, it fulfilled most of the use
-                        case to create modern and beautiful UI and application
+                    <p className="text-lg text-white/90 leading-relaxed">
+                        Manage locations, camps, rooms, assignments, staff, and
+                        maintenance from one place—built for operations teams who
+                        run day-to-day camp life.
                     </p>
                 </div>
                 <span className="text-white">

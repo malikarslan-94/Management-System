@@ -42,6 +42,14 @@ export const protectedRoutes = [
         component: lazy(() => import('@/views/admin/EmployeeManagement')),
         authority: [],
     },
+    {
+        key: 'inventoryMaintenance',
+        path: '/inventory-maintenance',
+        component: lazy(
+            () => import('@/views/admin/InventoryMaintenance'),
+        ),
+        authority: [],
+    },
     // {
     //     key: 'roomList',
     //     path: '/rooms/list',
