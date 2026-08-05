@@ -116,6 +116,7 @@ const RoomAssignments = () => {
         const roomId = searchParams.get('roomId')
 
         if (action === 'assign' && roomId) {
+            fetchRooms()
             setAssignFormData({
                 roomId,
                 occupantId: '',
@@ -484,16 +485,27 @@ const RoomAssignments = () => {
         return rooms
             .filter((room) => {
                 const roomId = room._id || room.id
-                return !assignedRoomIds.includes(roomId) && room.isAvailable !== false
+                // Only 'available' rooms can be assigned — a room in
+                // maintenance or cleaning is not free, which the old
+                // isAvailable boolean could not distinguish.
+                return !assignedRoomIds.includes(roomId) && room.status === 'available'
             })
-            .map((room) => ({
-                value: room._id || room.id || '',
-                label: `${room.roomNumber} (${room.type}) - Camp: ${
+            .map((room) => {
+                const campName =
                     typeof room.camp === 'object' && room.camp
                         ? room.camp.name
-                        : 'N/A'
-                }`,
-            }))
+                        : camps.find(
+                              (c) =>
+                                  c._id ===
+                                  (typeof room.camp === 'string'
+                                      ? room.camp
+                                      : ''),
+                          )?.name || 'Unknown Camp'
+                return {
+                    value: room._id || room.id || '',
+                    label: `${room.roomNumber} (${room.type}) — ${campName}`,
+                }
+            })
     }
 
     const handleFilterChange = (name: string, value: string) => {
@@ -546,6 +558,7 @@ const RoomAssignments = () => {
                         variant="solid"
                         icon={<HiOutlineUserAdd />}
                         onClick={() => {
+                            fetchRooms()
                             setAssignFormData({
                                 roomId: '',
                                 occupantId: '',

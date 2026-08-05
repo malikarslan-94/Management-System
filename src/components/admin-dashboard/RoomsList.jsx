@@ -18,13 +18,13 @@ const RoomsList = ({ rooms, onEdit, onDelete, camps }) => {
         const roomsArray = Array.isArray(rooms) ? rooms : []
         const campsArray = Array.isArray(camps) ? camps : []
         
-        // Calculate from actual Room documents (useRooms returns isAvailable boolean)
+        // Calculate from actual Room documents (useRooms returns a status enum)
         const totalRooms = roomsArray.length
         const availableRooms = roomsArray.filter(
-            (room) => room.isAvailable === true
+            (room) => room.status === 'available'
         ).length
         const occupiedRooms = roomsArray.filter(
-            (room) => room.isAvailable === false
+            (room) => room.status === 'occupied'
         ).length
         
         // Calculate breakdown by camp from actual Room documents
@@ -46,7 +46,7 @@ const RoomsList = ({ rooms, onEdit, onDelete, camps }) => {
             }
             
             roomsByCamp[campName].total++
-            if (room.isAvailable === true) {
+            if (room.status === 'available') {
                 roomsByCamp[campName].available++
             } else {
                 roomsByCamp[campName].occupied++
@@ -67,11 +67,15 @@ const RoomsList = ({ rooms, onEdit, onDelete, camps }) => {
         return { totalRooms, availableRooms, occupiedRooms, roomsByCamp }
     }, [rooms, camps])
 
-    const getStatusClass = (isAvailable) => {
-        return isAvailable
-            ? 'bg-green-100 text-green-800'
-            : 'bg-red-100 text-red-800'
+    const STATUS_CLASSES = {
+        available: 'bg-green-100 text-green-800',
+        occupied: 'bg-amber-100 text-amber-800',
+        maintenance: 'bg-red-100 text-red-800',
+        cleaning: 'bg-blue-100 text-blue-800',
     }
+
+    const getStatusClass = (status) =>
+        STATUS_CLASSES[status] || 'bg-gray-100 text-gray-800'
 
     const getCampName = (camp) => {
         // Handle populated camp object
@@ -201,12 +205,12 @@ const RoomsList = ({ rooms, onEdit, onDelete, camps }) => {
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <Badge
                                         className={getStatusClass(
-                                            room.isAvailable,
+                                            room.status,
                                         )}
                                     >
-                                        {room.isAvailable
-                                            ? 'Available'
-                                            : 'Unavailable'}
+                                        <span className="capitalize">
+                                            {room.status || 'available'}
+                                        </span>
                                     </Badge>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

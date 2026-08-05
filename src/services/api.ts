@@ -8,21 +8,69 @@ const api = axios.create({
     },
 })
 
+// Location API
+export const locationApi = {
+    getAll: () => api.get('/api/locations'),
+    getById: (id: string) => api.get(`/api/locations/${id}`),
+    getCamps: (id: string) => api.get(`/api/locations/${id}/camps`),
+    create: (data: any) => api.post('/api/locations', data),
+    update: (id: string, data: any) => api.patch(`/api/locations/${id}`, data),
+    delete: (id: string) => api.delete(`/api/locations/${id}`),
+}
+
 // Camp API
 export const campApi = {
-    getAll: () => api.get('/api/camps'),
+    getAll: (params?: { locationId?: string }) => api.get('/api/camps', { params }),
     getById: (id: string) => api.get(`/api/camps/${id}`),
+    getBuildings: (id: string) => api.get(`/api/camps/${id}/buildings`),
+    // `data.buildings` may carry the camp's blocks so a camp is never created
+    // without somewhere to put rooms.
     create: (data: any) => api.post('/api/camps', data),
     update: (id: string, data: any) => api.patch(`/api/camps/${id}`, data),
     delete: (id: string) => api.delete(`/api/camps/${id}`),
 }
 
+// Building API
+export const buildingApi = {
+    getAll: (params?: { campId?: string }) => api.get('/api/buildings', { params }),
+    getById: (id: string) => api.get(`/api/buildings/${id}`),
+    getRooms: (id: string) => api.get(`/api/buildings/${id}/rooms`),
+    getFloors: (id: string) => api.get(`/api/buildings/${id}/floors`),
+    create: (data: any) => api.post('/api/buildings', data),
+    update: (id: string, data: any) => api.patch(`/api/buildings/${id}`, data),
+    delete: (id: string) => api.delete(`/api/buildings/${id}`),
+}
+
+// Camp Facility API
+export const facilityApi = {
+    getAll: (params?: { campId?: string; kind?: string }) => api.get('/api/facilities', { params }),
+    getById: (id: string) => api.get(`/api/facilities/${id}`),
+    create: (data: any) => api.post('/api/facilities', data),
+    update: (id: string, data: any) => api.patch(`/api/facilities/${id}`, data),
+    delete: (id: string) => api.delete(`/api/facilities/${id}`),
+}
+
 // Room API
 export const roomApi = {
-    getAll: () => api.get('/api/rooms'),
+    getAll: (params?: { campId?: string; buildingId?: string; floor?: number; status?: string }) =>
+        api.get('/api/rooms', { params }),
     getByCampId: (campId: string) => api.get(`/api/rooms/camp/${campId}`),
+    getByBuildingId: (buildingId: string) => api.get(`/api/rooms/building/${buildingId}`),
     getById: (id: string) => api.get(`/api/rooms/${id}`),
     create: (data: any) => api.post('/api/rooms', data),
+    // Generates a whole floor (or several) at once; all-or-nothing.
+    bulkCreate: (data: {
+        buildingId: string
+        floors: Array<{
+            floor: number
+            count: number
+            startNumber: string
+            type: string
+            capacity: number
+            price?: number
+            amenities?: string[]
+        }>
+    }) => api.post('/api/rooms/bulk', data),
     update: (id: string, data: any) => api.patch(`/api/rooms/${id}`, data),
     delete: (id: string) => api.delete(`/api/rooms/${id}`),
 }

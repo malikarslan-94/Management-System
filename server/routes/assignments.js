@@ -130,10 +130,10 @@ router.post('/', async (req, res) => {
             return res.status(404).json({ message: 'Room not found' })
         }
 
-        if (!room.isAvailable) {
+        if (room.status !== 'available') {
             return res
                 .status(400)
-                .json({ message: 'Room is not available for assignment' })
+                .json({ message: `Room is ${room.status} and cannot be assigned.` })
         }
 
         // Check if room already has active assignment
@@ -185,7 +185,7 @@ router.post('/', async (req, res) => {
         const newAssignment = await assignment.save()
 
         // Update room availability
-        room.isAvailable = false
+        room.status = 'occupied'
         await room.save()
 
         // Populate before returning
@@ -235,8 +235,10 @@ router.put('/:id', getAssignment, async (req, res) => {
         // If completing assignment, update room availability
         if (status === 'completed' || status === 'cancelled') {
             const room = await Room.findById(assignment.roomId)
-            if (room) {
-                room.isAvailable = true
+            // Only an occupied room frees up — a room pulled out for
+            // maintenance while assigned must not be flipped back to available.
+            if (room && room.status === 'occupied') {
+                room.status = 'available'
                 await room.save()
             }
 
@@ -303,8 +305,8 @@ router.delete('/:id', getAssignment, async (req, res) => {
 
         // Update room availability
         const room = await Room.findById(assignment.roomId)
-        if (room) {
-            room.isAvailable = true
+        if (room && room.status === 'occupied') {
+            room.status = 'available'
             await room.save()
         }
 

@@ -6,17 +6,27 @@ const campSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  // Every camp belongs to exactly one location.
+  // Run server/scripts/migrateToNewStructure.js before deploying this constraint.
+  locationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    required: true,
+  },
+  // Deprecated denormalized label. Kept only so older clients keep rendering;
+  // never read it to resolve the parent location — use locationId.
   location: {
     type: String,
-    required: true
+    default: '',
   },
   description: {
     type: String,
-    required: true
+    default: '',
+    trim: true,
   },
   price: {
     type: Number,
-    required: true,
+    default: 0,
     min: 0
   },
   image: {
@@ -41,17 +51,14 @@ const campSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'inactive', 'maintenance'],
     default: 'active'
-  },
-  totalRooms: {
-    type: Number,
-    default: 0,
-    min: 0
-  },
-  occupiedRooms: {
-    type: Number,
-    default: 0,
-    min: 0
   }
+  // totalRooms / occupiedRooms removed: they were written once at creation and
+  // never maintained. Both are computed per request in routes/camps.js.
 });
+
+// A location cannot hold two camps with the same name — otherwise the camp
+// picker in the room form shows two indistinguishable entries.
+campSchema.index({ locationId: 1, name: 1 }, { unique: true });
+campSchema.index({ status: 1 });
 
 module.exports = mongoose.model('Camp', campSchema);

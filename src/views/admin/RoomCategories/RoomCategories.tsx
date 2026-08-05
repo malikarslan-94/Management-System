@@ -243,11 +243,13 @@ const RoomCategories = () => {
       
       // Update room status to occupied
       const updatedRoom = await updateRoom(selectedRoom.id, { status: 'occupied' })
-      
+
       // Update local rooms state
-      setRooms(prev => prev.map(room => 
-        room.id === selectedRoom.id ? updatedRoom : room
-      ))
+      if (updatedRoom) {
+        setRooms(prev => prev.map(room =>
+          room.id === selectedRoom.id ? updatedRoom : room
+        ))
+      }
       
       // Refresh rooms list to ensure data is in sync
       const refreshedRooms = await getRooms()

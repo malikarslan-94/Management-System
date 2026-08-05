@@ -3,7 +3,9 @@ const express = require('express')
 const mongoose = require('mongoose')
 const cors = require('cors')
 const path = require('path')
+const Location = require('./models/Location')
 const Camp = require('./models/Camp')
+const Building = require('./models/Building')
 const Room = require('./models/Room')
 
 const app = express()
@@ -34,10 +36,14 @@ mongoose
     .catch((err) => console.error('MongoDB connection error:', err))
 
 // Routes
+app.use('/api/locations', require('./routes/locations'))
 app.use('/api/camps', require('./routes/camps'))
+app.use('/api/buildings', require('./routes/buildings'))
+app.use('/api/facilities', require('./routes/facilities'))
 app.use('/api/rooms', require('./routes/rooms'))
 app.use('/api/users', require('./routes/users'))
 app.use('/api/employees', require('./routes/employees'))
+app.use('/api/assignments', require('./routes/assignments'))
 
 // Basic route for testing
 app.get('/api/health', (req, res) => {
@@ -74,10 +80,25 @@ async function seedInitialData() {
         if (campCount === 0) {
             console.log('Seeding initial data...')
 
+            // Locations first — a camp cannot exist without one.
+            const [loc1, loc2] = await Promise.all([
+                Location.findOneAndUpdate(
+                    { name: 'Swat Valley' },
+                    { name: 'Swat Valley', status: 'active' },
+                    { upsert: true, new: true },
+                ),
+                Location.findOneAndUpdate(
+                    { name: 'Naran' },
+                    { name: 'Naran', status: 'active' },
+                    { upsert: true, new: true },
+                ),
+            ])
+
             // Create sample camps
             const camp1 = new Camp({
                 name: 'Mountain View Camp',
-                location: 'Swat Valley',
+                locationId: loc1._id,
+                location: loc1.name,
                 description: 'Beautiful camp with stunning mountain views',
                 price: 5000,
                 image: 'https://example.com/mountain-view.jpg',
@@ -86,7 +107,8 @@ async function seedInitialData() {
 
             const camp2 = new Camp({
                 name: 'Lakeside Retreat',
-                location: 'Naran',
+                locationId: loc2._id,
+                location: loc2.name,
                 description: 'Peaceful camp by the lake',
                 price: 4500,
                 image: 'https://example.com/lake-view.jpg',
@@ -98,26 +120,46 @@ async function seedInitialData() {
                 camp2.save(),
             ])
 
+            // One building per camp: these samples are single-block camps.
+            const [block1, block2] = await Promise.all([
+                Building.create({
+                    campId: savedCamp1._id,
+                    name: 'Mountain View Camp',
+                    type: 'residential',
+                    floors: 2,
+                }),
+                Building.create({
+                    campId: savedCamp2._id,
+                    name: 'Lakeside Retreat',
+                    type: 'residential',
+                    floors: 1,
+                }),
+            ])
+
             // Create sample rooms
             const room1 = new Room({
                 camp: savedCamp1._id,
+                buildingId: block1._id,
+                floor: 1,
                 roomNumber: 'MV-101',
                 type: 'double',
                 capacity: 2,
                 price: 2500,
                 amenities: ['AC', 'TV', 'WiFi', 'Bathroom'],
-                isAvailable: true,
+                status: 'available',
                 description: 'Cozy double room with mountain view',
             })
 
             const room2 = new Room({
                 camp: savedCamp2._id,
+                buildingId: block2._id,
+                floor: 1,
                 roomNumber: 'LR-201',
                 type: 'family',
                 capacity: 4,
                 price: 4500,
                 amenities: ['AC', 'TV', 'WiFi', 'Bathroom', 'Kitchen'],
-                isAvailable: true,
+                status: 'available',
                 description: 'Spacious family room with lake view',
             })
 

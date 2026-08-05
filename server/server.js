@@ -43,6 +43,9 @@ const Room = require('./models/Room')
 const User = require('./models/User')
 const Employee = require('./models/Employee')
 const RoomAssignment = require('./models/RoomAssignment')
+const Location = require('./models/Location')
+const Building = require('./models/Building')
+const CampFacility = require('./models/CampFacility')
 
 // Authentication Middleware
 const auth = async (req, res, next) => {
@@ -79,16 +82,25 @@ const modelMap = {
     users: User,
     employees: Employee,
     assignments: RoomAssignment,
+    locations: Location,
+    buildings: Building,
+    facilities: CampFacility,
 }
 
 // Specific routes (register before generic handlers to ensure they take precedence)
+const locationsRouter = require('./routes/locations')
 const campsRouter = require('./routes/camps')
+const buildingsRouter = require('./routes/buildings')
+const facilitiesRouter = require('./routes/facilities')
 const roomsRouter = require('./routes/rooms')
 const usersRouter = require('./routes/users')
 const employeesRouter = require('./routes/employees')
 const assignmentsRouter = require('./routes/assignments')
 
+app.use('/api/locations', locationsRouter)
 app.use('/api/camps', campsRouter)
+app.use('/api/buildings', buildingsRouter)
+app.use('/api/facilities', facilitiesRouter)
 app.use('/api/rooms', roomsRouter)
 app.use('/api/users', usersRouter)
 app.use('/api/employees', employeesRouter)
@@ -96,7 +108,7 @@ app.use('/api/assignments', assignmentsRouter)
 
 // Debug: Log route registration
 console.log(
-    '✅ Registered specific routes: /api/camps, /api/rooms, /api/users, /api/employees, /api/assignments',
+    '✅ Registered routes: /api/locations, /api/camps, /api/buildings, /api/facilities, /api/rooms, /api/users, /api/employees, /api/assignments',
 )
 
 // Auth Routes

@@ -1,21 +1,9 @@
 import { Notification, toast } from '@/components/ui'
 import { campApi } from '@/services/api'
+import type { Camp, CreateCampInput } from '@/services/CampService'
 import { useCallback, useEffect, useState } from 'react'
 
-interface Camp {
-    _id?: string
-    name: string
-    location: string
-    description?: string
-    price?: number
-    image?: string
-    rating?: number
-    status?: 'active' | 'inactive'
-    totalRooms?: number
-    occupiedRooms?: number
-}
-
-export const useCamps = () => {
+export const useCamps = (locationId?: string) => {
     const [camps, setCamps] = useState<Camp[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -23,7 +11,7 @@ export const useCamps = () => {
     const fetchCamps = useCallback(async () => {
         try {
             setLoading(true)
-            const response = await campApi.getAll()
+            const response = await campApi.getAll(locationId ? { locationId } : undefined)
             console.log('API Response:', response)
 
             // Camps route returns array directly, employees/rooms return wrapped format
@@ -43,41 +31,55 @@ export const useCamps = () => {
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [locationId])
 
-    const addCamp = async (campData: Omit<Camp, '_id'>) => {
+    /**
+     * Creates a camp together with its buildings in one request, so a new camp
+     * is immediately able to accept rooms. `location` is not sent — the server
+     * derives the denormalized label from locationId.
+     */
+    const addCamp = async (campData: CreateCampInput) => {
         try {
-            const campWithDefaults: Camp = {
-                name: campData.name || 'Unnamed Camp',
-                location: campData.location || 'Unknown Location',
-                description: campData.description || 'No description provided',
-                price: campData.price ?? 0,
-                status: campData.status || 'active',
-                totalRooms: campData.totalRooms ?? 0,
-                occupiedRooms: campData.occupiedRooms ?? 0,
-                image: campData.image,
-                rating: campData.rating,
+            if (!campData.locationId) {
+                throw new Error('A location must be selected for this camp.')
             }
 
-            const response = await campApi.create(campWithDefaults)
+            const payload: CreateCampInput = {
+                name: campData.name?.trim() || 'Unnamed Camp',
+                locationId: campData.locationId,
+                description: campData.description || '',
+                price: campData.price ?? 0,
+                image: campData.image,
+                buildings: campData.buildings ?? [],
+            }
+
+            const response = await campApi.create(payload)
 
             if (!response || !response.data) {
                 throw new Error('Invalid response from server')
             }
 
-            setCamps((prev) => [...prev, response.data])
+            await fetchCamps()
+
+            const blocks = payload.buildings?.length ?? 0
             toast.push(
                 <Notification title="Success" type="success">
-                    Camp added successfully!
+                    {blocks > 0
+                        ? `Camp created with ${blocks} building${blocks === 1 ? '' : 's'}.`
+                        : 'Camp added successfully!'}
                 </Notification>,
             )
 
             return response.data
-        } catch (err) {
+        } catch (err: unknown) {
             console.error('Error adding camp:', err)
+            const message =
+                (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+                (err as Error)?.message ||
+                'Failed to add camp'
             toast.push(
                 <Notification title="Error" type="danger">
-                    Failed to add camp
+                    {message}
                 </Notification>,
             )
             throw err

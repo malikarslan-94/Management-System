@@ -8,9 +8,13 @@ const DialogWrapper = ({
   isOpen,
   onClose,
   title,
+  subtitle,
   children,
   onConfirm,
   isLoading,
+  confirmLabel = 'Save',
+  loadingLabel = 'Saving...',
+  confirmDisabled = false,
 }) => {
   if (!isOpen) {
     return null;
@@ -21,8 +25,11 @@ const DialogWrapper = ({
       <div className="bg-white rounded-lg shadow-xl w-full max-w-xl relative max-h-[calc(100vh-6rem)] overflow-y-auto">
         {isLoading && <LoaderOverlay />}
         
-        <div className="p-4 border-b flex justify-between items-center sticky top-0 bg-white z-10">
-          <h3 className="text-lg font-medium">{title}</h3>
+        <div className="p-4 border-b flex justify-between items-start sticky top-0 bg-white z-10">
+          <div>
+            <h3 className="text-lg font-medium">{title}</h3>
+            {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+          </div>
           <button onClick={onClose} disabled={isLoading} className="text-gray-400 hover:text-gray-600">
             <HiX className="w-5 h-5" />
           </button>
@@ -41,9 +48,9 @@ const DialogWrapper = ({
             variant="solid"
             icon={<HiOutlineSave />}
             onClick={onConfirm}
-            disabled={isLoading}
+            disabled={isLoading || confirmDisabled}
           >
-            {isLoading ? 'Saving...' : 'Save'}
+            {isLoading ? loadingLabel : confirmLabel}
           </Button>
         </div>
       </div>

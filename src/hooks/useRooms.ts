@@ -5,12 +5,17 @@ import { createElement, useCallback, useEffect, useState } from 'react'
 interface Room {
     _id: string
     camp: string | { _id: string; name: string; location: string }
+    /** Always present — the API rejects rooms without a building. */
+    buildingId: string | { _id: string; name: string; type: string; floors?: number }
+    floor: number
     roomNumber: string
     type: 'single' | 'double' | 'suite' | 'family'
     capacity: number
     price: number
     amenities: string[]
-    isAvailable: boolean
+    status: 'available' | 'occupied' | 'maintenance' | 'cleaning'
+    /** Read-only virtual kept by the API for older callers. Prefer `status`. */
+    isAvailable?: boolean
     images?: string[]
     description?: string
 }
@@ -86,9 +91,6 @@ export const useRooms = (campId?: string) => {
                     roomsByCamp[campName] = (roomsByCamp[campName] || 0) + 1
                 })
                 console.log('Rooms breakdown by camp:', roomsByCamp)
-                console.log(
-                    'Note: Camp totalRooms field may differ from actual Room documents count',
-                )
             }
 
             setRooms(roomsData)
@@ -118,6 +120,36 @@ export const useRooms = (campId?: string) => {
                     ?.data?.message ||
                 (err as Error)?.message ||
                 'Failed to add room'
+            notifyError(message)
+            throw err
+        }
+    }
+
+    /** Bulk-generate rooms for one or more floors of a building. All-or-nothing. */
+    const generateRooms = async (
+        buildingId: string,
+        floors: Array<{
+            floor: number
+            count: number
+            startNumber: string
+            type: string
+            capacity: number
+            price?: number
+            amenities?: string[]
+        }>,
+    ) => {
+        try {
+            const response = await roomApi.bulkCreate({ buildingId, floors })
+            await fetchRooms()
+            const created = response.data?.created ?? 0
+            notifySuccess(`${created} room${created === 1 ? '' : 's'} generated`)
+            return response.data
+        } catch (err: unknown) {
+            console.error('Error generating rooms:', err)
+            const message =
+                (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+                (err as Error)?.message ||
+                'Failed to generate rooms'
             notifyError(message)
             throw err
         }
@@ -178,6 +210,7 @@ export const useRooms = (campId?: string) => {
         error,
         fetchRooms,
         addRoom,
+        generateRooms,
         updateRoom,
         deleteRoom,
     }

@@ -1,15 +1,24 @@
 // src/components/admin-dashboard/AdminDashboard.jsx
-import { Button } from '@/components/ui'
+import { Button, FormContainer, FormItem, Input } from '@/components/ui'
+import { Select } from '@/components/ui/select'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { toggleAdminPanel } from '@/store/theme/themeSlice'
 import React, { useCallback, useEffect, useState } from 'react'
-import { HiArrowLeft, HiOutlinePlus } from 'react-icons/hi'
+import { HiArrowLeft, HiOutlineDuplicate, HiOutlinePlus } from 'react-icons/hi'
+import { useBuildings } from '../../hooks/useBuildings'
 import { useCamps } from '../../hooks/useCamps'
 import { useEmployees } from '../../hooks/useEmployees'
 import { useRooms } from '../../hooks/useRooms'
 
+import {
+    buildingsFromStructure,
+    emptyBuildingRow,
+    validateStructure,
+} from '@/services/CampService'
 import CampForm from './CampForm'
 import CampsList from './CampsList'
+import { BUILDING_TYPES, FLOOR_OPTIONS } from './CampStructureFields'
+import RoomGeneratorForm from './RoomGeneratorForm'
 import DialogWrapper from './DialogWrapper'
 import EmployeeDetail from './EmployeeDetail'
 import EmployeeForm from './EmployeeForm'
@@ -25,12 +34,18 @@ const getInitialFormData = (tab) => {
         return {
             type: 'camp',
             name: '',
-            location: '',
+            // Real reference to a Location document; `location` was a free-text
+            // string that could not be resolved reliably.
+            locationId: '',
             description: '',
             image: '',
-            totalRooms: '',
-            occupiedRooms: '',
+            price: '',
             status: 'active',
+            // Structure step — same as the Locations & Camps flow, so a camp
+            // created here can accept rooms immediately too.
+            structureMode: 'single',
+            singleFloors: '1',
+            buildingRows: [emptyBuildingRow()],
             id: undefined,
         }
     }
@@ -51,13 +66,15 @@ const getInitialFormData = (tab) => {
     }
     return {
         type: 'room',
-        camp: '', // Changed from campId to camp to match API
+        camp: '', // Used only to filter the building list; the API derives it
+        buildingId: '',
+        floor: 1,
         roomNumber: '',
         type: 'single', // Changed from roomType to type to match API
         capacity: '',
         price: '', // Changed from pricePerNight to price to match API
         amenities: [],
-        isAvailable: true, // Changed from status to isAvailable to match API
+        status: 'available', // Replaces the isAvailable boolean
         description: '',
         images: [],
         id: undefined,
@@ -79,6 +96,7 @@ const AdminDashboard = () => {
         rooms,
         loading: roomsLoading,
         addRoom,
+        generateRooms,
         updateRoom,
         deleteRoom,
     } = useRooms()
@@ -90,6 +108,8 @@ const AdminDashboard = () => {
         updateEmployee,
         deleteEmployee,
     } = useEmployees()
+
+    const { addBuilding } = useBuildings()
 
     const [activeTab, setActiveTab] = useState('camps')
     const [isOpen, setIsOpen] = useState(false)
@@ -126,6 +146,8 @@ const AdminDashboard = () => {
 
             switch (name) {
                 case 'camp':
+                case 'locationId':
+                case 'buildingId':
                 case 'name':
                 case 'roomNumber':
                 case 'type':
@@ -154,20 +176,6 @@ const AdminDashboard = () => {
                     if (isNaN(num) || num < 0) errs[name] = 'Must be ≥ 0'
                     else delete errs[name]
                     break
-                case 'totalRooms':
-                case 'occupiedRooms':
-                    if (activeTab === 'camps') {
-                        const num = Number(value)
-                        if (isNaN(num) || num < 0) errs[name] = 'Must be ≥ 0'
-                        else if (
-                            name === 'occupiedRooms' &&
-                            Number(formData.totalRooms) >= 0 &&
-                            num > Number(formData.totalRooms)
-                        ) {
-                            errs[name] = 'Cannot exceed total rooms'
-                        } else delete errs[name]
-                    }
-                    break
                 default:
                     break
             }
@@ -181,11 +189,12 @@ const AdminDashboard = () => {
     const validateForm = useCallback(() => {
         let fields = []
         if (activeTab === 'camps') {
-            fields = ['name', 'location', 'totalRooms', 'occupiedRooms']
+            fields = ['name', 'locationId']
         } else if (activeTab === 'employees') {
             fields = ['firstName', 'lastName', 'email', 'phone', 'employeeType']
         } else {
-            fields = ['camp', 'roomNumber', 'type', 'capacity', 'price']
+            // buildingId is required now — a room cannot exist outside a building.
+            fields = ['camp', 'buildingId', 'roomNumber', 'type', 'capacity', 'price']
         }
         return fields.every((field) => validateField(field, formData[field]))
     }, [activeTab, formData, validateField])
@@ -205,13 +214,70 @@ const AdminDashboard = () => {
         [validateField],
     )
 
-    const handleCheckboxChange = useCallback(
-        (name) => (e) => {
-            const val = e?.target?.value ?? e
-            setFormData((prev) => ({ ...prev, [name]: val }))
-        },
-        [],
-    )
+    /** Sets a form field directly, for values that aren't plain inputs (arrays, modes). */
+    const setFieldValue = useCallback((name, value) => {
+        setFormData((prev) => ({ ...prev, [name]: value }))
+    }, [])
+
+    // Add a building to an existing camp — same action as the camp cards on
+    // Locations & camps.
+    const [buildingModalOpen, setBuildingModalOpen] = useState(false)
+    const [buildingTargetCamp, setBuildingTargetCamp] = useState(null)
+    const [buildingForm, setBuildingForm] = useState(emptyBuildingRow())
+    const [buildingSubmitting, setBuildingSubmitting] = useState(false)
+
+    const handleOpenAddBuilding = (camp) => {
+        setBuildingTargetCamp({ id: camp._id, name: camp.name })
+        setBuildingForm(emptyBuildingRow())
+        setBuildingModalOpen(true)
+    }
+
+    const handleSaveBuilding = async () => {
+        if (!buildingTargetCamp || !buildingForm.name.trim()) {
+            setErrors((prev) => ({ ...prev, buildingName: 'Building name is required' }))
+            return
+        }
+        setBuildingSubmitting(true)
+        try {
+            await addBuilding({
+                campId: buildingTargetCamp.id,
+                name: buildingForm.name.trim(),
+                type: buildingForm.type,
+                floors: Math.max(1, parseInt(buildingForm.floors, 10) || 1),
+                status: 'active',
+            })
+            await fetchCamps()
+            setBuildingModalOpen(false)
+            setErrors({})
+        } catch {
+            /* addBuilding already toasts */
+        } finally {
+            setBuildingSubmitting(false)
+        }
+    }
+
+    // Bulk room generation — same capability as Room Management on the dashboard.
+    const [isGenerateOpen, setIsGenerateOpen] = useState(false)
+    const [generateCampId, setGenerateCampId] = useState('')
+    const [isGenerating, setIsGenerating] = useState(false)
+    const [generateValid, setGenerateValid] = useState(false)
+    const generatePayloadRef = React.useRef(null)
+
+    const handleGenerateRooms = async () => {
+        const payload = generatePayloadRef.current
+        if (!payload?.buildingId || payload.floors.length === 0) return
+
+        setIsGenerating(true)
+        try {
+            await generateRooms(payload.buildingId, payload.floors)
+            setIsGenerateOpen(false)
+            setGenerateCampId('')
+        } catch {
+            /* generateRooms already toasts, including every colliding number */
+        } finally {
+            setIsGenerating(false)
+        }
+    }
 
     const handleAmenityChange = useCallback((amenity, checked) => {
         setFormData((prev) => {
@@ -233,14 +299,12 @@ const AdminDashboard = () => {
                 if (activeTab === 'camps') {
                     const campData = {
                         name: formData.name,
-                        location: formData.location,
+                        locationId: formData.locationId,
                         description: formData.description,
                         price: Number(formData.price) || 0,
                         image: formData.image || '',
                         rating: Number(formData.rating) || 0,
                         status: formData.status || 'active',
-                        totalRooms: Number(formData.totalRooms) || 0,
-                        occupiedRooms: Number(formData.occupiedRooms) || 0,
                     }
                     await updateCamp(formData._id || formData.id, campData)
                 } else if (activeTab === 'employees') {
@@ -279,17 +343,17 @@ const AdminDashboard = () => {
                         employeeData,
                     )
                 } else {
+                    // `camp` is omitted deliberately: the API derives it from
+                    // the building so the two can never disagree.
                     const roomData = {
-                        camp: formData.camp,
+                        buildingId: formData.buildingId,
+                        floor: Number(formData.floor) || 1,
                         roomNumber: formData.roomNumber,
                         type: formData.type,
                         capacity: Number(formData.capacity),
-                        price: Number(formData.price),
+                        price: Number(formData.price) || 0,
                         amenities: formData.amenities || [],
-                        isAvailable:
-                            formData.isAvailable !== undefined
-                                ? formData.isAvailable
-                                : true,
+                        status: formData.status || 'available',
                         description: formData.description || '',
                         images: formData.images || [],
                     }
@@ -297,16 +361,28 @@ const AdminDashboard = () => {
                 }
             } else {
                 if (activeTab === 'camps') {
+                    // Same structure step as the Locations & Camps flow, through
+                    // the same helpers, so both produce identical payloads.
+                    const buildings = buildingsFromStructure({
+                        mode: formData.structureMode || 'single',
+                        campName: formData.name || '',
+                        singleFloors: formData.singleFloors || '1',
+                        rows: formData.buildingRows || [],
+                    })
+
+                    const structureError = validateStructure(buildings)
+                    if (structureError) {
+                        setErrors((prev) => ({ ...prev, buildingRows: structureError }))
+                        return
+                    }
+
                     const campData = {
                         name: formData.name,
-                        location: formData.location,
+                        locationId: formData.locationId,
                         description: formData.description,
                         price: Number(formData.price) || 0,
                         image: formData.image || '',
-                        rating: Number(formData.rating) || 0,
-                        status: formData.status || 'active',
-                        totalRooms: Number(formData.totalRooms) || 0,
-                        occupiedRooms: Number(formData.occupiedRooms) || 0,
+                        buildings,
                     }
                     await addCamp(campData)
                     await fetchCamps() // ✅ refresh list after adding
@@ -343,17 +419,17 @@ const AdminDashboard = () => {
                     )
                     await addEmployee(employeeData)
                 } else {
+                    // `camp` is omitted deliberately: the API derives it from
+                    // the building so the two can never disagree.
                     const roomData = {
-                        camp: formData.camp,
+                        buildingId: formData.buildingId,
+                        floor: Number(formData.floor) || 1,
                         roomNumber: formData.roomNumber,
                         type: formData.type,
                         capacity: Number(formData.capacity),
-                        price: Number(formData.price),
+                        price: Number(formData.price) || 0,
                         amenities: formData.amenities || [],
-                        isAvailable:
-                            formData.isAvailable !== undefined
-                                ? formData.isAvailable
-                                : true,
+                        status: formData.status || 'available',
                         description: formData.description || '',
                         images: formData.images || [],
                     }
@@ -424,9 +500,17 @@ const AdminDashboard = () => {
     }
 
     const handleEdit = (item) => {
+        // References come back populated from the API, so flatten them to ids
+        // before they reach the form's select inputs.
+        const idOf = (value) =>
+            typeof value === 'object' && value !== null ? value._id || '' : value || ''
+
         const formData = {
             ...item,
             id: item._id,
+            locationId: idOf(item.locationId),
+            camp: idOf(item.camp),
+            buildingId: idOf(item.buildingId),
         }
         setFormData(formData)
         setIsEditing(true)
@@ -456,15 +540,25 @@ const AdminDashboard = () => {
                         <h1 className="text-2xl font-bold capitalize">
                             {activeTab}
                         </h1>
-                        {showAddButton && (
-                            <Button
-                                icon={<HiOutlinePlus />}
-                                variant="solid"
-                                onClick={handleAddNew}
-                            >
-                                Add New {activeTab.slice(0, -1)}
-                            </Button>
-                        )}
+                        <div className="flex gap-2">
+                            {activeTab === 'rooms' && (
+                                <Button
+                                    icon={<HiOutlineDuplicate />}
+                                    onClick={() => setIsGenerateOpen(true)}
+                                >
+                                    Generate Rooms
+                                </Button>
+                            )}
+                            {showAddButton && (
+                                <Button
+                                    icon={<HiOutlinePlus />}
+                                    variant="solid"
+                                    onClick={handleAddNew}
+                                >
+                                    Add New {activeTab.slice(0, -1)}
+                                </Button>
+                            )}
+                        </div>
                     </div>
                     <div className="relative">
                         <LoaderOverlay isLoading={isLoading} />
@@ -474,6 +568,7 @@ const AdminDashboard = () => {
                                 rooms={rooms}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
+                                onAddBuilding={handleOpenAddBuilding}
                             />
                         ) : activeTab === 'employees' ? (
                             <EmployeeList
@@ -509,8 +604,10 @@ const AdminDashboard = () => {
                     <CampForm
                         formData={formData}
                         errors={errors}
+                        isEditing={isEditing}
                         handleInputChange={handleInputChange}
                         handleSelectChange={handleSelectChange}
+                        setFieldValue={setFieldValue}
                         validateField={validateField}
                         getClass={getClass}
                     />
@@ -532,12 +629,89 @@ const AdminDashboard = () => {
                         camps={camps}
                         handleInputChange={handleInputChange}
                         handleSelectChange={handleSelectChange}
-                        handleCheckboxChange={handleCheckboxChange}
                         handleAmenityChange={handleAmenityChange}
                         validateField={validateField}
                         getClass={getClass}
                     />
                 )}
+            </DialogWrapper>
+            <DialogWrapper
+                isOpen={buildingModalOpen}
+                onClose={() => setBuildingModalOpen(false)}
+                title="Add building / block"
+                subtitle={buildingTargetCamp ? `Camp: ${buildingTargetCamp.name}` : undefined}
+                onConfirm={handleSaveBuilding}
+                isLoading={buildingSubmitting}
+                confirmLabel="Save building"
+            >
+                <FormContainer layout="vertical" size="sm">
+                    <FormItem label="Name" required extra="e.g. Block A, Building 1, Main Building">
+                        <Input
+                            value={buildingForm.name}
+                            onChange={(e) =>
+                                setBuildingForm((f) => ({ ...f, name: e.target.value }))
+                            }
+                            placeholder="Building name"
+                        />
+                        {errors.buildingName && (
+                            <div className="text-xs text-red-600">{errors.buildingName}</div>
+                        )}
+                    </FormItem>
+                    <FormItem label="Type">
+                        <Select
+                            value={
+                                BUILDING_TYPES.find((o) => o.value === buildingForm.type) ||
+                                BUILDING_TYPES[0]
+                            }
+                            onChange={(selected) =>
+                                setBuildingForm((f) => ({
+                                    ...f,
+                                    type: selected?.value || 'residential',
+                                }))
+                            }
+                            options={BUILDING_TYPES}
+                            classNamePrefix="react-select"
+                        />
+                    </FormItem>
+                    <FormItem
+                        label="Number of floors"
+                        extra="Use 1 for containers or single-storey blocks"
+                    >
+                        <Select
+                            value={
+                                FLOOR_OPTIONS.find((o) => o.value === buildingForm.floors) ||
+                                FLOOR_OPTIONS[0]
+                            }
+                            onChange={(selected) =>
+                                setBuildingForm((f) => ({ ...f, floors: selected?.value || '1' }))
+                            }
+                            options={FLOOR_OPTIONS}
+                            classNamePrefix="react-select"
+                        />
+                    </FormItem>
+                </FormContainer>
+            </DialogWrapper>
+            <DialogWrapper
+                isOpen={isGenerateOpen}
+                onClose={() => {
+                    setIsGenerateOpen(false)
+                    setGenerateCampId('')
+                }}
+                title="Generate Rooms"
+                subtitle="Create every room on a floor at once. Nothing is saved if any room number is already taken."
+                onConfirm={handleGenerateRooms}
+                isLoading={isGenerating}
+                confirmLabel="Generate"
+                loadingLabel="Generating..."
+                confirmDisabled={!generateValid}
+            >
+                <RoomGeneratorForm
+                    camps={camps}
+                    campId={generateCampId}
+                    onCampChange={setGenerateCampId}
+                    onValidChange={setGenerateValid}
+                    formRef={generatePayloadRef}
+                />
             </DialogWrapper>
             {selectedEmployee && (
                 <EmployeeDetail

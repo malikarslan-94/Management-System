@@ -16,11 +16,12 @@ export interface RoomCategory {
   roomCount: number
   availableCount: number
   // Map to Room Type enum values
-  roomType: 'single' | 'double' | 'suite' | 'family' | 'dormitory'
+  /** Must stay in step with RoomType in RoomService / the backend Room enum. */
+  roomType: 'single' | 'double' | 'suite' | 'family'
 }
 
 // Mapping: Room Category -> Room Type
-// Room Type is the backend enum: 'single' | 'double' | 'suite' | 'family' | 'dormitory'
+// Room Type is the backend enum: 'single' | 'double' | 'suite' | 'family'
 // Room Category is a frontend display concept with rich information
 
 // Mock data - replace with actual API calls

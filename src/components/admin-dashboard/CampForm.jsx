@@ -1,11 +1,42 @@
 // src/components/admin-dashboard/CampForm.jsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { FormContainer, FormItem, Input, Select } from '@/components/ui';
+import { locationApi } from '@/services/api';
+import CampStructureFields from './CampStructureFields';
 
-const CampForm = ({ formData, errors, handleInputChange, handleSelectChange, validateField, getClass }) => {
+/**
+ * Room totals are no longer editable here — camps report live counts from the
+ * API, so a hand-typed figure could only ever be wrong.
+ *
+ * When creating, this mirrors the Locations & Camps flow exactly: pick a real
+ * location, then declare the camp's structure so it can accept rooms straight
+ * away. On edit the structure section is hidden — buildings are added and
+ * removed individually once a camp exists.
+ */
+const CampForm = ({
+  formData,
+  errors,
+  isEditing,
+  handleInputChange,
+  handleSelectChange,
+  setFieldValue,
+  validateField,
+  getClass,
+}) => {
+  const [locations, setLocations] = useState([]);
+  const [locationsLoading, setLocationsLoading] = useState(true);
+
+  useEffect(() => {
+    locationApi
+      .getAll()
+      .then((res) => setLocations(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setLocations([]))
+      .finally(() => setLocationsLoading(false));
+  }, []);
+
   return (
     <FormContainer layout="vertical" size="sm">
-      <FormItem label="Name">
+      <FormItem label="Name" required>
         <Input
           name="name"
           value={formData.name}
@@ -16,43 +47,45 @@ const CampForm = ({ formData, errors, handleInputChange, handleSelectChange, val
         />
         {errors.name && <div className="text-xs text-red-600">{errors.name}</div>}
       </FormItem>
-      <FormItem label="Location">
-        <Input
-          name="location"
-          value={formData.location}
-          onChange={handleInputChange}
-          onBlur={e => validateField('location', e.target.value)}
-          className={`w-full ${getClass('location')}`}
-          required
-        />
-        {errors.location && <div className="text-xs text-red-600">{errors.location}</div>}
+
+      {/* A camp must point at a real Location document — free text used to
+          create phantom locations that existed only in one browser. */}
+      <FormItem label="Location" required>
+        <Select
+          value={formData.locationId || ''}
+          onChange={handleSelectChange('locationId')}
+          className="w-full"
+          disabled={locationsLoading}
+        >
+          <option value="">
+            {locationsLoading ? 'Loading locations...' : 'Select a location'}
+          </option>
+          {locations.map((loc) => (
+            <option key={loc._id} value={loc._id}>
+              {loc.name}
+            </option>
+          ))}
+        </Select>
+        {!locationsLoading && locations.length === 0 && (
+          <div className="text-xs text-red-500 mt-1">
+            No locations yet. Add one under Locations &amp; camps first.
+          </div>
+        )}
+        {errors.locationId && <div className="text-xs text-red-600">{errors.locationId}</div>}
       </FormItem>
-      <FormItem label="Total Rooms">
+
+      <FormItem label="Base price">
         <Input
           type="number"
-          name="totalRooms"
-          value={formData.totalRooms}
+          name="price"
+          value={formData.price}
           onChange={handleInputChange}
-          onBlur={e => validateField('totalRooms', e.target.value)}
           min="0"
-          className={`w-full ${getClass('totalRooms')}`}
+          className={`w-full ${getClass('price')}`}
         />
-        {errors.totalRooms && <div className="text-xs text-red-600">{errors.totalRooms}</div>}
+        {errors.price && <div className="text-xs text-red-600">{errors.price}</div>}
       </FormItem>
-      <FormItem label="Occupied Rooms">
-        <Input
-          type="number"
-          name="occupiedRooms"
-          value={formData.occupiedRooms}
-          onChange={handleInputChange}
-          onBlur={e => validateField('occupiedRooms', e.target.value)}
-          min="0"
-          max={formData.totalRooms || ''}
-          disabled={!formData.totalRooms}
-          className={`w-full ${getClass('occupiedRooms')}`}
-        />
-        {errors.occupiedRooms && <div className="text-xs text-red-600">{errors.occupiedRooms}</div>}
-      </FormItem>
+
       <FormItem label="Status">
         <Select
           value={formData.status}
@@ -64,6 +97,7 @@ const CampForm = ({ formData, errors, handleInputChange, handleSelectChange, val
           <option value="maintenance">Under Maintenance</option>
         </Select>
       </FormItem>
+
       <FormItem label="Description">
         <textarea
           name="description"
@@ -74,6 +108,26 @@ const CampForm = ({ formData, errors, handleInputChange, handleSelectChange, val
           placeholder="Optional"
         />
       </FormItem>
+
+      {!isEditing && (
+        <>
+          <CampStructureFields
+            structure={{
+              mode: formData.structureMode || 'single',
+              singleFloors: formData.singleFloors || '1',
+              rows: formData.buildingRows || [],
+            }}
+            onChange={(patch) => {
+              if (patch.mode !== undefined) setFieldValue('structureMode', patch.mode);
+              if (patch.singleFloors !== undefined) setFieldValue('singleFloors', patch.singleFloors);
+              if (patch.rows !== undefined) setFieldValue('buildingRows', patch.rows);
+            }}
+          />
+          {errors.buildingRows && (
+            <div className="text-xs text-red-600 mt-1">{errors.buildingRows}</div>
+          )}
+        </>
+      )}
     </FormContainer>
   );
 };

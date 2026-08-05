@@ -170,8 +170,10 @@ const Home = () => {
         0,
     )
 
+    // `status === 'occupied'` counts only genuinely occupied rooms; the old
+    // `isAvailable === false` also swept in maintenance and cleaning.
     const occupiedFromDocuments = roomsArray.filter(
-        (r) => r.isAvailable === false,
+        (r) => r.status === 'occupied',
     ).length
     const totalRoomsDocuments = roomsArray.length
 

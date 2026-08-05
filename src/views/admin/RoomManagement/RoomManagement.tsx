@@ -1,4 +1,6 @@
 import AdaptableCard from '@/components/shared/AdaptableCard'
+import RoomForm from '@/components/admin-dashboard/RoomForm'
+import RoomGeneratorForm from '@/components/admin-dashboard/RoomGeneratorForm'
 import { FormContainer, FormItem, Notification, toast } from '@/components/ui'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -8,6 +10,7 @@ import Input from '@/components/ui/Input'
 import { Select } from '@/components/ui/select'
 import Tooltip from '@/components/ui/Tooltip'
 import { useEmployees } from '@/hooks/useEmployees'
+import { useCamps } from '@/hooks/useCamps'
 import {
     assignRoom,
     type AssignRoomPayload,
@@ -22,6 +25,7 @@ import {
     type Room,
     type RoomStatus,
 } from '@/services/RoomService'
+import { roomApi } from '@/services/api'
 import React, { useEffect, useMemo, useState } from 'react'
 import {
     FaBed,
@@ -38,6 +42,7 @@ import {
 import {
     HiOutlineArrowSmRight,
     HiOutlineCheckCircle,
+    HiOutlineDuplicate,
     HiOutlineHome,
     HiOutlinePlus,
     HiOutlineSearch,
@@ -93,6 +98,170 @@ const RoomManagement = () => {
     })
     const [assignErrors, setAssignErrors] = useState<Record<string, string>>({})
     const [isAssigning, setIsAssigning] = useState(false)
+
+    // Add Room state
+    const { camps } = useCamps()
+    const [isAddRoomOpen, setIsAddRoomOpen] = useState(false)
+    const [isSubmittingRoom, setIsSubmittingRoom] = useState(false)
+    const [addRoomErrors, setAddRoomErrors] = useState<Record<string, string>>({})
+    const [addRoomFormData, setAddRoomFormData] = useState({
+        camp: '',
+        buildingId: '',
+        floor: 1,
+        roomNumber: '',
+        type: '',
+        capacity: '' as string | number,
+        status: 'available' as RoomStatus,
+        amenities: [] as string[],
+        description: '',
+        price: 0,
+    })
+
+    const resetAddRoomForm = () =>
+        setAddRoomFormData({
+            camp: '',
+            buildingId: '',
+            floor: 1,
+            roomNumber: '',
+            type: '',
+            capacity: '',
+            status: 'available',
+            amenities: [],
+            description: '',
+            price: 0,
+        })
+
+    // Bulk room generation
+    const [isGenerateOpen, setIsGenerateOpen] = useState(false)
+    const [generateCampId, setGenerateCampId] = useState('')
+    const [isGenerating, setIsGenerating] = useState(false)
+    const [generateValid, setGenerateValid] = useState(false)
+    const generatePayloadRef = React.useRef<{
+        buildingId: string
+        floors: Array<{
+            floor: number
+            count: number
+            startNumber: string
+            type: string
+            capacity: number
+            price?: number
+            amenities?: string[]
+        }>
+    } | null>(null)
+
+    const handleGenerateRooms = async () => {
+        const payload = generatePayloadRef.current
+        if (!payload?.buildingId || payload.floors.length === 0) return
+
+        setIsGenerating(true)
+        try {
+            const response = await roomApi.bulkCreate(payload)
+            const refreshed = await getRooms()
+            setRooms(refreshed)
+            setIsGenerateOpen(false)
+            setGenerateCampId('')
+            toast.push(
+                <Notification title="Success" type="success">
+                    {response.data?.created ?? 0} rooms generated
+                </Notification>,
+            )
+        } catch (err: any) {
+            // The API reports every colliding room number and creates nothing.
+            toast.push(
+                <Notification title="Could not generate rooms" type="danger">
+                    {err?.response?.data?.message || 'Failed to generate rooms'}
+                </Notification>,
+            )
+        } finally {
+            setIsGenerating(false)
+        }
+    }
+
+    const handleRoomInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target
+        setAddRoomFormData((prev) => ({ ...prev, [name]: value }))
+    }
+
+    const handleRoomSelectChange = (field: string) => (e: { target: { value: any } }) => {
+        const value = e.target.value
+        if (field === 'camp') {
+            setAddRoomFormData((prev) => ({ ...prev, camp: value, buildingId: '', floor: 1 }))
+        } else if (field === 'buildingId') {
+            setAddRoomFormData((prev) => ({ ...prev, buildingId: value, floor: 1 }))
+        } else {
+            setAddRoomFormData((prev) => ({ ...prev, [field]: value }))
+        }
+        if (addRoomErrors[field]) {
+            setAddRoomErrors((prev) => { const n = { ...prev }; delete n[field]; return n })
+        }
+    }
+
+    const handleRoomAmenityChange = (amenity: string, checked: boolean) => {
+        setAddRoomFormData((prev) => ({
+            ...prev,
+            amenities: checked
+                ? [...prev.amenities, amenity]
+                : prev.amenities.filter((a) => a !== amenity),
+        }))
+    }
+
+    const validateRoomField = (name: string, value: any) => {
+        if (!value && ['roomNumber', 'type', 'capacity'].includes(name)) {
+            setAddRoomErrors((prev) => ({ ...prev, [name]: 'This field is required' }))
+        } else {
+            setAddRoomErrors((prev) => { const n = { ...prev }; delete n[name]; return n })
+        }
+    }
+
+    const getRoomFieldClass = (field: string) =>
+        addRoomErrors[field] ? 'border-red-500' : ''
+
+    const handleAddRoomSubmit = async () => {
+        const errors: Record<string, string> = {}
+        if (!addRoomFormData.camp) errors.camp = 'Camp is required'
+        if (!addRoomFormData.buildingId) errors.buildingId = 'Please select a building'
+        if (!addRoomFormData.roomNumber) errors.roomNumber = 'Room number is required'
+        if (!addRoomFormData.type) errors.type = 'Room type is required'
+        if (!addRoomFormData.capacity) errors.capacity = 'Capacity is required'
+
+        setAddRoomErrors(errors)
+        if (Object.keys(errors).length > 0) return
+
+        setIsSubmittingRoom(true)
+        try {
+            // `camp` is intentionally not sent — the API derives it from the
+            // building, so the two can never disagree.
+            await roomApi.create({
+                buildingId: addRoomFormData.buildingId,
+                floor: addRoomFormData.floor || 1,
+                roomNumber: addRoomFormData.roomNumber,
+                type: addRoomFormData.type,
+                capacity: Number(addRoomFormData.capacity),
+                price: Number(addRoomFormData.price) || 0,
+                amenities: addRoomFormData.amenities,
+                status: addRoomFormData.status,
+                description: addRoomFormData.description,
+            })
+            const refreshed = await getRooms()
+            setRooms(refreshed)
+            setIsAddRoomOpen(false)
+            resetAddRoomForm()
+            setAddRoomErrors({})
+            toast.push(
+                <Notification title="Success" type="success">
+                    Room added successfully
+                </Notification>,
+            )
+        } catch (err: any) {
+            toast.push(
+                <Notification title="Error" type="danger">
+                    {err?.response?.data?.message || 'Failed to add room'}
+                </Notification>,
+            )
+        } finally {
+            setIsSubmittingRoom(false)
+        }
+    }
 
     // Fetch employees and visitors for assignment
     const { employees: allEmployees, fetchEmployees } = useEmployees()
@@ -367,11 +536,13 @@ const RoomManagement = () => {
             })
 
             // Update local rooms state
-            setRooms((prev) =>
-                prev.map((room) =>
-                    room.id === selectedRoom.id ? updatedRoom : room,
-                ),
-            )
+            if (updatedRoom) {
+                setRooms((prev) =>
+                    prev.map((room) =>
+                        room.id === selectedRoom.id ? updatedRoom : room,
+                    ),
+                )
+            }
 
             // Refresh rooms list to ensure data is in sync
             const refreshedRooms = await getRooms()
@@ -765,7 +936,7 @@ const RoomManagement = () => {
                         <Button
                             variant="solid"
                             icon={<HiOutlinePlus />}
-                            onClick={() => console.log('Add new room')}
+                            onClick={() => setIsAddRoomOpen(true)}
                         >
                             Add New Room
                         </Button>
@@ -855,14 +1026,15 @@ const RoomManagement = () => {
                         All Rooms
                     </Button>
                     <Button
+                        icon={<HiOutlineDuplicate />}
+                        onClick={() => setIsGenerateOpen(true)}
+                    >
+                        Generate Rooms
+                    </Button>
+                    <Button
                         variant="solid"
                         icon={<HiOutlinePlus />}
-                        onClick={() =>
-                            console.log(
-                                'Add new',
-                                viewMode === 'categories' ? 'category' : 'room',
-                            )
-                        }
+                        onClick={() => setIsAddRoomOpen(true)}
                     >
                         Add {viewMode === 'categories' ? 'Category' : 'Room'}
                     </Button>
@@ -872,6 +1044,108 @@ const RoomManagement = () => {
             {renderStats()}
 
             {viewMode === 'categories' ? renderCategories() : renderRooms()}
+
+            {/* Add Room Dialog */}
+            <Dialog
+                isOpen={isAddRoomOpen}
+                onClose={() => {
+                    setIsAddRoomOpen(false)
+                    resetAddRoomForm()
+                    setAddRoomErrors({})
+                }}
+                width={600}
+            >
+                <div className="flex flex-col max-h-[90vh]">
+                    <div className="flex-shrink-0 p-6 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                            Add New Room
+                        </h3>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6">
+                        <RoomForm
+                            formData={addRoomFormData}
+                            errors={addRoomErrors}
+                            camps={camps}
+                            handleInputChange={handleRoomInputChange}
+                            handleSelectChange={handleRoomSelectChange}
+                            handleAmenityChange={handleRoomAmenityChange}
+                            validateField={validateRoomField}
+                            getClass={getRoomFieldClass}
+                        />
+                    </div>
+                    <div className="flex-shrink-0 flex justify-end gap-2 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                        <Button
+                            variant="plain"
+                            onClick={() => {
+                                setIsAddRoomOpen(false)
+                                resetAddRoomForm()
+                                setAddRoomErrors({})
+                            }}
+                            disabled={isSubmittingRoom}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="solid"
+                            onClick={handleAddRoomSubmit}
+                            loading={isSubmittingRoom}
+                        >
+                            Add Room
+                        </Button>
+                    </div>
+                </div>
+            </Dialog>
+
+            {/* Generate Rooms Dialog — fills whole floors in one request */}
+            <Dialog
+                isOpen={isGenerateOpen}
+                onClose={() => {
+                    setIsGenerateOpen(false)
+                    setGenerateCampId('')
+                }}
+                width={720}
+            >
+                <div className="flex flex-col max-h-[90vh]">
+                    <div className="flex-shrink-0 p-6 border-b border-gray-200 dark:border-gray-700">
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                            Generate Rooms
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Create every room on a floor at once. Nothing is saved if any room
+                            number is already taken.
+                        </p>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6">
+                        <RoomGeneratorForm
+                            camps={camps}
+                            campId={generateCampId}
+                            onCampChange={setGenerateCampId}
+                            onValidChange={setGenerateValid}
+                            formRef={generatePayloadRef}
+                        />
+                    </div>
+                    <div className="flex-shrink-0 flex justify-end gap-2 p-6 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                        <Button
+                            variant="plain"
+                            onClick={() => {
+                                setIsGenerateOpen(false)
+                                setGenerateCampId('')
+                            }}
+                            disabled={isGenerating}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="solid"
+                            onClick={handleGenerateRooms}
+                            loading={isGenerating}
+                            disabled={!generateValid}
+                        >
+                            Generate
+                        </Button>
+                    </div>
+                </div>
+            </Dialog>
 
             {/* Assign Room Modal */}
             <Dialog

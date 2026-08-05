@@ -94,9 +94,7 @@ const employeeSchema = new mongoose.Schema(
 )
 
 // Index for faster queries
-employeeSchema.index({ email: 1 })
-employeeSchema.index({ iqamaNumber: 1 })
-employeeSchema.index({ employeeId: 1 })
+// Note: email, iqamaNumber and employeeId are already indexed via `unique: true`
 employeeSchema.index({ campId: 1 })
 employeeSchema.index({ employeeType: 1 })
 employeeSchema.index({ status: 1 })

@@ -35,7 +35,8 @@ export const fetchRooms = createAsyncThunk(
 
 export const addRoom = createAsyncThunk(
   'rooms/add',
-  async (roomData: Omit<Room, 'id'>, { rejectWithValue }) => {
+  // campId is omitted: the API derives the camp from buildingId.
+  async (roomData: Omit<Room, 'id' | 'campId'>, { rejectWithValue }) => {
     try {
       const response = await apiCreateRoom(roomData);
       return response;
@@ -93,13 +94,16 @@ const roomSlice = createSlice({
         state.loading = false;
         state.error = action.payload as string;
       })
-      // Add Room
+      // Add Room — the service returns null if the response could not be parsed
       .addCase(addRoom.fulfilled, (state, action) => {
-        state.rooms.push(action.payload);
+        if (action.payload) {
+          state.rooms.push(action.payload);
+        }
       })
       // Update Room
       .addCase(updateRoom.fulfilled, (state, action) => {
-        const index = state.rooms.findIndex(room => room.id === action.payload.id);
+        if (!action.payload) return;
+        const index = state.rooms.findIndex(room => room.id === action.payload!.id);
         if (index !== -1) {
           state.rooms[index] = action.payload;
         }
