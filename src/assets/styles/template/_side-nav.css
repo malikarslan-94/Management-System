@@ -7,9 +7,21 @@
     @apply sticky top-0 h-screen;
   }
   
+  .side-nav-header {
+    @apply h-16 flex items-center flex-shrink-0 border-b border-gray-200 dark:border-gray-600;
+  }
+
   .side-nav-content {
     height: calc(100vh - theme("spacing.16"));
-    @apply overflow-y-auto;
+    @apply flex flex-col min-h-0;
+  }
+
+  .side-nav-content-main {
+    @apply flex-1 min-h-0;
+  }
+
+  .side-nav-content-admin {
+    @apply flex-shrink-0 border-t border-gray-200 dark:border-gray-600 pt-1;
   }
   
   .side-nav-light {

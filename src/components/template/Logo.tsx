@@ -9,31 +9,35 @@ interface LogoProps extends CommonProps {
     logoWidth?: number | string
 }
 
-const LOGO_SRC_PATH = '/img/logo/'
-
 const Logo = (props: LogoProps) => {
     const {
         type = 'full',
-        mode = 'light',
         className,
         imgClass,
         style,
         logoWidth = 'auto',
     } = props
 
+    const src =
+        type === 'streamline'
+            ? '/img/logo/camp-logo-icon.png'
+            : '/img/logo/camp-logo-cropped.png'
+
     return (
         <div
-            className={classNames('logo flex items-center -my-3', className)}
+            className={classNames('logo flex items-center', className)}
             style={{
                 ...style,
                 ...{ width: logoWidth },
             }}
         >
             <img
-                className={classNames('h-28 w-auto', imgClass)}
-                src="/img/logo/camp-logo.png"
+                className={classNames(
+                    type === 'streamline' ? 'h-8 w-8' : 'h-8 w-auto',
+                    imgClass,
+                )}
+                src={src}
                 alt={`${APP_NAME} logo`}
-                style={{ backgroundColor: 'transparent' }}
             />
         </div>
     )

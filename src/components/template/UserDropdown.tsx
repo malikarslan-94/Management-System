@@ -4,7 +4,11 @@ import withHeaderItem from '@/utils/hoc/withHeaderItem'
 import useAuth from '@/utils/hooks/useAuth'
 import { Link } from 'react-router-dom'
 import classNames from 'classnames'
-import { HiOutlineLogout, HiOutlineUser } from 'react-icons/hi'
+import {
+    HiOutlineLogout,
+    HiOutlineUser,
+    HiOutlineChevronDown,
+} from 'react-icons/hi'
 import type { CommonProps } from '@/@types/common'
 import type { JSX } from 'react'
 
@@ -20,11 +24,18 @@ const _UserDropdown = ({ className }: CommonProps) => {
     const { signOut } = useAuth()
 
     const UserAvatar = (
-        <div className={classNames(className, 'flex items-center gap-2')}>
-            <Avatar size={32} shape="circle" icon={<HiOutlineUser />} />
-            <div className="hidden md:block">
-                <div className="text-xs capitalize">admin</div>
-                <div className="font-bold">User01</div>
+        <div className={className}>
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-600 py-1 pl-1 pr-2">
+                <Avatar size={28} shape="circle" icon={<HiOutlineUser />} />
+                <div className="hidden md:block leading-tight">
+                    <div className="font-semibold text-gray-900 dark:text-gray-100 text-xs">
+                        User01
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                        admin
+                    </div>
+                </div>
+                <HiOutlineChevronDown className="hidden md:block text-gray-400" />
             </div>
         </div>
     )

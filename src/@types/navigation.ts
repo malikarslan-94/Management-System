@@ -9,4 +9,6 @@ export interface NavigationTree {
     authority: string[]
     subMenu: NavigationTree[]
     disabled?: boolean
+    /** Dispatches a store action instead of navigating when clicked. */
+    action?: 'toggleAdminPanel'
 }

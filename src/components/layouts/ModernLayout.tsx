@@ -1,6 +1,3 @@
-import { useNavigate } from 'react-router-dom'
-import { useAppDispatch, useAppSelector } from '@/store'
-import { toggleAdminPanel } from '@/store/theme/themeSlice'
 import Header from '@/components/template/Header'
 import SidePanel from '@/components/template/SidePanel'
 import UserDropdown from '@/components/template/UserDropdown'
@@ -11,49 +8,34 @@ import Notification from '@/components/template/Notification'
 import Search from '@/components/template/Search'
 import View from '@/views'
 import AdminDashboard from '@/views/admin/AdminDashboard'
-import { Button } from '@/components/ui'
-
-
+import navigationConfig from '@/configs/navigation.config'
+import useMenuActive from '@/utils/hooks/useMenuActive'
+import { useAppSelector } from '@/store'
 
 const HeaderActionsStart = () => {
-    const dispatch = useAppDispatch()
-    const navigate = useNavigate()
-    const adminPanelOpen = useAppSelector(
-        (state) => state.theme.adminPanelOpen
+    const currentRouteKey = useAppSelector(
+        (state) => state.base.common.currentRouteKey,
     )
+    const { activedRoute } = useMenuActive(navigationConfig, currentRouteKey)
+
     return (
         <>
             <MobileNav />
             <SideNavToggle />
-            <Button
-                title="Locations & camps"
-                variant="plain"
-                className="transition-all duration-200 hidden sm:inline-flex"
-                onClick={() => navigate('/locations-camps')}
-            >
-                Locations
-            </Button>
-            <Button
-                title="Admin Panel"
-                variant={adminPanelOpen ? 'solid' : 'plain'}
-                onClick={() => dispatch(toggleAdminPanel())}
-                className="transition-all duration-200"
-            >
-                {adminPanelOpen ? 'Close' : 'Admin Panel'}
-            </Button>
+            <span className="font-medium text-gray-900 dark:text-gray-100 hidden sm:inline">
+                {activedRoute?.title || 'Dashboard'}
+            </span>
         </>
     )
 }
 
 const HeaderActionsEnd = () => {
-   
-
     return (
         <>
             <Search />
             <Notification />
-           
             <SidePanel />
+            <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 mx-1" />
             <UserDropdown hoverable={false} />
         </>
     )

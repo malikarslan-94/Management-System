@@ -8,6 +8,7 @@ import {
     HiOutlinePlus,
     HiOutlineSearch,
     HiOutlineTrash,
+    HiOutlineChevronRight,
 } from 'react-icons/hi'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -280,52 +281,62 @@ const LocationsCamps = () => {
     // ─── Render ──────────────────────────────────────────────────────────────
     const renderLocationCard = (location: (typeof locations)[0]) => {
         const id = String(location._id)
+        const isSelected = selectedLocation === id
+        const campCount = location.campCount ?? 0
         return (
             <Card
                 key={id}
-                className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
-                    selectedLocation === id ? 'ring-2 ring-indigo-500' : ''
+                className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
+                    isSelected
+                        ? 'ring-2 ring-indigo-500 bg-indigo-50/60 dark:bg-indigo-500/10'
+                        : 'hover:border-indigo-200'
                 }`}
                 onClick={() => setSelectedLocation(id)}
             >
-                <div className="flex items-start">
-                    <div className="bg-indigo-100 dark:bg-indigo-500/20 p-3 rounded-lg mr-4">
-                        <HiOutlineMap className="text-2xl text-indigo-600 dark:text-indigo-300" />
+                <div className="flex items-center gap-3">
+                    <div
+                        className={`p-2.5 rounded-lg shrink-0 ${
+                            isSelected
+                                ? 'bg-indigo-600 text-white'
+                                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
+                        }`}
+                    >
+                        <HiOutlineMap className="text-xl" />
                     </div>
+
                     <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start gap-2">
-                            <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                {location.name}
-                            </h4>
-                            <Badge
-                                content={location.campCount}
-                                className="bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200 shrink-0"
-                            />
-                        </div>
+                        <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate">
+                            {location.name}
+                        </h4>
                         {location.city || location.address ? (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                                 {[location.city, location.address].filter(Boolean).join(' · ')}
                             </p>
                         ) : null}
-                        <div className="flex items-center justify-between mt-2">
-                            <span className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                                <HiOutlineOfficeBuilding className="mr-1" /> {location.campCount} camps
-                            </span>
-                            {location.campCount === 0 && (
-                                <Button
-                                    size="xs"
-                                    variant="plain"
-                                    icon={<HiOutlineTrash />}
-                                    onClick={(e: React.MouseEvent) => {
-                                        e.stopPropagation()
-                                        handleDeleteLocation(id)
-                                    }}
-                                >
-                                    Delete
-                                </Button>
-                            )}
-                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {campCount === 0 ? 'No camps yet' : `${campCount} camp${campCount === 1 ? '' : 's'}`}
+                        </p>
                     </div>
+
+                    {campCount === 0 ? (
+                        <Button
+                            size="xs"
+                            variant="plain"
+                            icon={<HiOutlineTrash />}
+                            onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation()
+                                handleDeleteLocation(id)
+                            }}
+                        >
+                            Delete
+                        </Button>
+                    ) : (
+                        <HiOutlineChevronRight
+                            className={`text-lg shrink-0 ${
+                                isSelected ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-300'
+                            }`}
+                        />
+                    )}
                 </div>
             </Card>
         )
@@ -346,41 +357,61 @@ const LocationsCamps = () => {
 
         return (
             <Card key={campId} className="hover:shadow-md transition-shadow duration-200">
-                <div className="flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                        <h4 className="font-medium text-gray-900 dark:text-gray-100">{camp.name}</h4>
-                        <Badge
-                            content={camp.status || 'inactive'}
-                            className={
-                                camp.status === 'active'
-                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                                    : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                            }
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <h4 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{camp.name}</h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {buildingCount} building{buildingCount === 1 ? '' : 's'} · {totalRooms} room
+                            {totalRooms === 1 ? '' : 's'}
+                        </p>
+                    </div>
+                    <Badge
+                        content={camp.status || 'inactive'}
+                        className={`shrink-0 ${
+                            camp.status === 'active'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                        }`}
+                    />
+                </div>
+
+                {/* Occupancy spelled out — "0 / 4 rooms" reads clearer than three
+                    separate counters the reader has to relate to each other. */}
+                <div className="mt-4">
+                    <div className="flex items-baseline justify-between text-xs mb-1.5">
+                        <span className="text-gray-500 dark:text-gray-400">
+                            <span className="font-semibold text-gray-700 dark:text-gray-200">
+                                {occupiedRooms}
+                            </span>{' '}
+                            of {totalRooms} room{totalRooms === 1 ? '' : 's'} occupied
+                        </span>
+                        <span className="font-semibold text-gray-700 dark:text-gray-200">{occupancyPercent}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                        <div
+                            className="bg-indigo-600 h-2 rounded-full transition-all"
+                            style={{ width: `${occupancyPercent}%` }}
                         />
                     </div>
+                </div>
 
-                    <div className="flex items-center mt-2 text-sm flex-wrap gap-x-4">
-                        <div className="flex items-center text-gray-500 dark:text-gray-400">
-                            <HiOutlineOfficeBuilding className="mr-1 shrink-0" /> {buildingCount} building
-                            {buildingCount !== 1 ? 's' : ''}
-                        </div>
-                        <div className="flex items-center text-gray-500 dark:text-gray-400">
-                            <HiOutlineHome className="mr-1 shrink-0" /> {totalRooms} rooms
-                        </div>
-                        <div className="flex items-center text-gray-500 dark:text-gray-400">
-                            <HiOutlineUserGroup className="mr-1 shrink-0" /> {occupiedRooms} occupied
-                        </div>
-                    </div>
-
-                    {campBuildings.length > 0 && (
-                        <div className="mt-3 space-y-1">
+                {/* Buildings inside this camp, labelled so the rows aren't mistaken
+                    for another set of camp-level figures. */}
+                <div className="mt-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
+                        Buildings / blocks
+                    </p>
+                    {campBuildings.length > 0 ? (
+                        <div className="space-y-1">
                             {campBuildings.map((b) => (
                                 <div
                                     key={b._id}
-                                    className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-700 rounded px-2 py-1"
+                                    className="flex items-center justify-between text-xs bg-gray-50 dark:bg-gray-700 rounded px-2 py-1.5"
                                 >
-                                    <span className="font-medium text-gray-700 dark:text-gray-200">{b.name}</span>
-                                    <span className="text-gray-400">
+                                    <span className="font-medium text-gray-700 dark:text-gray-200 truncate">
+                                        {b.name}
+                                    </span>
+                                    <span className="text-gray-400 shrink-0 ml-2">
                                         {b.floors === 1 ? '1 floor' : `${b.floors} floors`}
                                         {' · '}
                                         {b.roomCount ?? 0} rooms
@@ -388,38 +419,32 @@ const LocationsCamps = () => {
                                 </div>
                             ))}
                         </div>
+                    ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                            None yet — add a building before you can create rooms.
+                        </p>
                     )}
+                </div>
 
-                    {totalRooms > 0 && (
-                        <div className="mt-3">
-                            <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2">
-                                <div
-                                    className="bg-indigo-600 h-2 rounded-full"
-                                    style={{ width: `${occupancyPercent}%` }}
-                                />
-                            </div>
-                            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                <span>Occupancy</span>
-                                <span>{occupancyPercent}%</span>
-                            </div>
-                        </div>
-                    )}
-
-                    <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-2">
+                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-2">
+                    <Button
+                        size="xs"
+                        variant="plain"
+                        icon={<HiOutlinePlus />}
+                        onClick={() => handleOpenAddBuilding(campId, camp.name)}
+                    >
+                        Add building / block
+                    </Button>
+                    {totalRooms === 0 && (
                         <Button
                             size="xs"
                             variant="plain"
                             icon={<HiOutlinePlus />}
-                            onClick={() => handleOpenAddBuilding(campId, camp.name)}
+                            onClick={() => navigate('/room-management')}
                         >
-                            Add building / block
+                            Add rooms
                         </Button>
-                        {totalRooms === 0 && (
-                            <Button size="xs" variant="plain" onClick={() => navigate('/room-management')}>
-                                Add rooms
-                            </Button>
-                        )}
-                    </div>
+                    )}
                 </div>
             </Card>
         )
@@ -449,7 +474,7 @@ const LocationsCamps = () => {
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
                 <Statistic
                     title="Total Locations"
                     value={stats.totalLocations}
@@ -476,13 +501,44 @@ const LocationsCamps = () => {
                 />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* One toolbar for the whole section: search plus both "add" actions,
+                so the columns below hold nothing but the lists themselves. */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="relative w-full sm:max-w-xs">
+                    <HiOutlineSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <Input
+                        className="pl-10 w-full"
+                        placeholder="Search camps..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Button icon={<HiOutlinePlus />} onClick={navigateToAddLocation}>
+                        Add location
+                    </Button>
+                    <Button
+                        variant="solid"
+                        icon={<HiOutlinePlus />}
+                        onClick={navigateToAddCamp}
+                        disabled={!selectedLocation}
+                    >
+                        Add camp
+                    </Button>
+                </div>
+            </div>
+
+            {/* mt-3! overrides the wrapper's space-y-6 so the lists sit close to the toolbar. */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-3!">
                 <div className="lg:col-span-1 space-y-4">
-                    <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Locations</h3>
-                        <Button size="sm" variant="solid" icon={<HiOutlinePlus />} onClick={navigateToAddLocation}>
-                            Add
-                        </Button>
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            Locations
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            Pick one to manage its camps
+                        </p>
                     </div>
 
                     <div className="space-y-3">
@@ -497,25 +553,15 @@ const LocationsCamps = () => {
                 </div>
 
                 <div className="lg:col-span-2 space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                            {selectedLocationName ? `${selectedLocationName} camps` : 'Select a location'}
+                            Camps
                         </h3>
-
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <div className="relative flex-1 min-w-[200px]">
-                                <HiOutlineSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                                <Input
-                                    className="pl-10 w-full"
-                                    placeholder="Search camps..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                />
-                            </div>
-                            <Button icon={<HiOutlinePlus />} onClick={navigateToAddCamp} disabled={!selectedLocation}>
-                                Add camp
-                            </Button>
-                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {selectedLocationName
+                                ? `${filteredCamps.length} in ${selectedLocationName}`
+                                : 'Select a location on the left'}
+                        </p>
                     </div>
 
                     {selectedLocation ? (
@@ -529,7 +575,9 @@ const LocationsCamps = () => {
                                         No camps found
                                     </h4>
                                     <p className="text-gray-500 dark:text-gray-400 mt-1">
-                                        {search ? 'Try a different search term' : 'Create your first camp for this location'}
+                                        {search
+                                            ? 'Try a different search term'
+                                            : `${selectedLocationName ?? 'This location'} has no camps yet.`}
                                     </p>
                                     <Button
                                         className="mt-4"
@@ -547,7 +595,7 @@ const LocationsCamps = () => {
                             <div className="text-4xl mb-4">📍</div>
                             <h4 className="text-lg font-medium text-gray-700 dark:text-gray-200">Select a location</h4>
                             <p className="text-gray-500 dark:text-gray-400 mt-1">
-                                Choose a location to view or manage its camps
+                                Choose a location from the list on the left to view or manage its camps
                             </p>
                         </Card>
                     )}

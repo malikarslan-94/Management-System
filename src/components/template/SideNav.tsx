@@ -9,11 +9,19 @@ import {
     SIDE_NAV_CONTENT_GUTTER,
     LOGO_X_GUTTER,
 } from '@/constants/theme.constant'
+import { NAV_ITEM_TYPE_TITLE } from '@/constants/navigation.constant'
 import Logo from '@/components/template/Logo'
 import navigationConfig from '@/configs/navigation.config'
 import VerticalMenuContent from '@/components/template/VerticalMenuContent'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { useAppSelector } from '@/store'
+
+const mainNavigationConfig = navigationConfig.filter(
+    (nav) => nav.type !== NAV_ITEM_TYPE_TITLE,
+)
+const adminNavigationGroup = navigationConfig.find(
+    (nav) => nav.type === NAV_ITEM_TYPE_TITLE,
+)
 
 const sideNavStyle = {
     width: SIDE_NAV_WIDTH,
@@ -62,11 +70,22 @@ const SideNav = () => {
         return navMode
     }
 
-    const menuContent = (
+    const mainMenuContent = (
         <VerticalMenuContent
             navMode={navMode}
             collapsed={sideNavCollapse}
-            navigationTree={navigationConfig}
+            navigationTree={mainNavigationConfig}
+            routeKey={currentRouteKey}
+            userAuthority={userAuthority as string[]}
+            direction={direction}
+        />
+    )
+
+    const adminMenuContent = adminNavigationGroup && (
+        <VerticalMenuContent
+            navMode={navMode}
+            collapsed={sideNavCollapse}
+            navigationTree={[adminNavigationGroup]}
             routeKey={currentRouteKey}
             userAuthority={userAuthority as string[]}
             direction={direction}
@@ -97,15 +116,18 @@ const SideNav = () => {
                             }
                         />
                     </div>
-                    {sideNavCollapse ? (
-                        menuContent
-                    ) : (
-                        <div className="side-nav-content">
+                    <div className="side-nav-content">
+                        <div className="side-nav-content-main">
                             <ScrollBar autoHide direction={direction}>
-                                {menuContent}
+                                {mainMenuContent}
                             </ScrollBar>
                         </div>
-                    )}
+                        {adminMenuContent && (
+                            <div className="side-nav-content-admin">
+                                {adminMenuContent}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </>

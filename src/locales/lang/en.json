@@ -2,6 +2,8 @@
     "nav": {
         "home": "Home",
         "inventoryMaintenance": "Inventory & maintenance",
+        "administration": "Administration",
+        "adminPanel": "Admin Panel",
         "singleMenuItem": "Single menu item",
         "collapseMenu": {
             "collapseMenu": "Collapse menu item",

@@ -14,6 +14,7 @@ import {
     HiOutlineChartBar,
     HiOutlineCog,
     HiOutlinePuzzle,
+    HiOutlineShieldCheck,
 } from 'react-icons/hi'
 import type { JSX } from 'react'
 
@@ -32,6 +33,7 @@ const navigationIcon: NavigationIcons = {
     activity: <HiOutlinePuzzle />,
     barChart: <HiOutlineChartBar />,
     settings: <HiOutlineCog />,
+    shieldLock: <HiOutlineShieldCheck />,
     singleMenu: <HiOutlineViewGridAdd />,
     collapseMenu: <HiOutlineTemplate />,
     groupSingleMenu: <HiOutlineDesktopComputer />,

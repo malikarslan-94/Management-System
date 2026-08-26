@@ -1,4 +1,3 @@
-import AdaptableCard from '@/components/shared/AdaptableCard'
 import RoomForm from '@/components/admin-dashboard/RoomForm'
 import RoomGeneratorForm from '@/components/admin-dashboard/RoomGeneratorForm'
 import { FormContainer, FormItem, Notification, toast } from '@/components/ui'
@@ -652,9 +651,10 @@ const RoomManagement = () => {
                 ).length
 
                 return (
-                    <AdaptableCard
+                    <Card
                         key={category.id}
-                        className="hover:shadow-lg transition-shadow cursor-pointer"
+                        bodyClass="card-gutterless flex flex-col flex-1"
+                        className="hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col"
                         onClick={() => {
                             setViewMode('rooms')
                             setActiveCategory(category.id)
@@ -680,7 +680,7 @@ const RoomManagement = () => {
                                 }
                             />
                         </div>
-                        <div className="p-4">
+                        <div className="p-2 flex-1 flex flex-col">
                             <div className="flex justify-between items-start mb-2">
                                 <h3 className="font-semibold text-lg">
                                     {category.name}
@@ -706,11 +706,9 @@ const RoomManagement = () => {
                                     </span>
                                 )}
                             </div>
-                            <div className="flex justify-between items-center">
-                                <div className="text-sm text-gray-500">
-                                    {availableCount} of {roomCount} available
-                                </div>
-                                <div className="flex gap-2">
+                            <div className="flex justify-between items-center mt-auto pt-3 border-t border-gray-100 dark:border-gray-700">
+                              
+                                <div className="flex   w-full justify-between">
                                     {availableCount > 0 && (
                                         <Button
                                             size="xs"
@@ -759,7 +757,7 @@ const RoomManagement = () => {
                                 </div>
                             </div>
                         </div>
-                    </AdaptableCard>
+                    </Card>
                 )
             })}
             </div>
@@ -767,21 +765,57 @@ const RoomManagement = () => {
     }
 
     // Render rooms list
-    const renderRooms = () => (
+    const renderRooms = () => {
+        const activeCategoryName = activeCategory
+            ? categories.find((c) => c.id === activeCategory)?.name
+            : null
+        const availableCount = filteredRooms.filter(
+            (r) => r.status === 'available',
+        ).length
+
+        // Tile accent per status, so a room's state reads before the badge does.
+        const statusAccent: Record<string, string> = {
+            available:
+                'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300',
+            occupied:
+                'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300',
+            maintenance:
+                'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300',
+            cleaning:
+                'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300',
+        }
+
+        const statusIcon = (status: string) => {
+            if (status === 'maintenance') return <span className="text-lg">🔧</span>
+            if (status === 'available') return <FaDoorOpen className="text-lg" />
+            return <FaDoorClosed className="text-lg" />
+        }
+
+        return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <div className="flex items-center gap-2">
+            {/* Same surface as the room cards below, so the toolbar reads as the
+                header of that listing rather than as loose page furniture. */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 shadow-sm px-5 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div className="flex items-center gap-3">
                     <Button
+                        size="sm"
+                        shape="circle"
                         icon={<HiOutlineArrowSmRight className="rotate-180" />}
                         variant="plain"
                         onClick={() => setViewMode('categories')}
                     />
-                    <h3 className="text-lg font-semibold">
-                        {activeCategory
-                            ? `${categories.find((c) => c.id === activeCategory)
-                                  ?.name} Rooms`
-                            : 'All Rooms'}
-                    </h3>
+                    <div>
+                        {/* The category name already ends in "Room" — don't append
+                            another "Rooms" to it. */}
+                        <h3 className="text-lg font-semibold">
+                            {activeCategoryName || 'All rooms'}
+                        </h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            {filteredRooms.length} room
+                            {filteredRooms.length === 1 ? '' : 's'} ·{' '}
+                            {availableCount} available
+                        </p>
+                    </div>
                 </div>
                 <div className="relative w-full sm:w-64">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -798,84 +832,86 @@ const RoomManagement = () => {
             </div>
 
             {filteredRooms.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-stretch">
                     {filteredRooms.map((room) => (
                         <Card
                             key={room.id}
-                            className="hover:shadow-md transition-shadow"
+                            className="h-full overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                            bodyClass="p-0 h-full"
                         >
-                            <div className="p-4">
-                                <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-semibold text-lg">
-                                        Room {room.roomNumber}
-                                        {room.status === 'occupied' && (
-                                            <FaDoorClosed className="inline-block ml-2 text-amber-500" />
-                                        )}
-                                        {room.status === 'available' && (
-                                            <FaDoorOpen className="inline-block ml-2 text-emerald-500" />
-                                        )}
-                                        {room.status === 'maintenance' && (
-                                            <Tooltip title="Under Maintenance">
-                                                <span className="text-rose-500">
-                                                    🔧
-                                                </span>
-                                            </Tooltip>
-                                        )}
-                                    </h3>
+                            <div className="flex flex-col h-full">
+                                <div className="p-5 flex-1">
+                                <div className="flex items-start gap-3">
+                                    <div
+                                        className={`shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
+                                            statusAccent[room.status] ??
+                                            statusAccent.available
+                                        }`}
+                                    >
+                                        {statusIcon(room.status)}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-semibold text-base text-gray-900 dark:text-gray-100 truncate">
+                                            Room {room.roomNumber}
+                                        </h3>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize truncate">
+                                            {room.type} · sleeps {room.capacity}
+                                        </p>
+                                    </div>
                                     <Badge
                                         content={room.status}
-                                        innerClass={statusColor[room.status]}
+                                        innerClass={`${statusColor[room.status]} capitalize shrink-0`}
                                     />
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-300 mb-4">
-                                    <div>
-                                        <div className="text-xs text-gray-500">
+
+                                {/* Type and capacity spelled out; the old third
+                                    "Status" field only repeated the badge. */}
+                                <div className="grid grid-cols-2 gap-2 mt-4">
+                                    <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                                        <p className="text-[11px] uppercase tracking-wide text-gray-400">
                                             Type
-                                        </div>
-                                        <div className="capitalize">
+                                        </p>
+                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-100 capitalize truncate">
                                             {room.type}
-                                        </div>
+                                        </p>
                                     </div>
-                                    <div>
-                                        <div className="text-xs text-gray-500">
+                                    <div className="rounded-lg bg-gray-50 dark:bg-gray-700/50 px-3 py-2">
+                                        <p className="text-[11px] uppercase tracking-wide text-gray-400">
                                             Capacity
-                                        </div>
-                                        <div>
+                                        </p>
+                                        <p className="text-sm font-medium text-gray-800 dark:text-gray-100">
                                             {room.capacity}{' '}
                                             {room.capacity === 1
                                                 ? 'person'
                                                 : 'people'}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs text-gray-500">
-                                            Status
-                                        </div>
-                                        <div className="capitalize">
-                                            {room.status}
-                                        </div>
+                                        </p>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap gap-1 mb-4">
-                                    {room.amenities
-                                        .slice(0, 4)
-                                        .map(renderFeatureIcon)}
-                                    {room.amenities.length > 4 && (
-                                        <span className="text-xs text-gray-500">
-                                            +{room.amenities.length - 4} more
-                                        </span>
-                                    )}
+
+                                {room.amenities.length > 0 && (
+                                    <div className="flex flex-wrap items-center gap-1 mt-3">
+                                        {room.amenities
+                                            .slice(0, 4)
+                                            .map(renderFeatureIcon)}
+                                        {room.amenities.length > 4 && (
+                                            <span className="text-xs text-gray-500">
+                                                +{room.amenities.length - 4} more
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
                                 </div>
-                                <div className="flex justify-end space-x-2 flex-wrap gap-2">
+
+                                <div className="mt-auto px-5 py-3 bg-gray-50 dark:bg-gray-700/40 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
                                     {room.status === 'available' ? (
                                         <Button
-                                            size="xs"
+                                            size="sm"
                                             variant="solid"
                                             icon={<HiOutlineUserAdd />}
                                             onClick={() =>
                                                 handleOpenAssignModal(room)
                                             }
-                                            className="bg-green-600 hover:bg-green-700"
                                         >
                                             Assign
                                         </Button>
@@ -885,7 +921,7 @@ const RoomManagement = () => {
                                         >
                                             <span>
                                                 <Button
-                                                    size="xs"
+                                                    size="sm"
                                                     variant="plain"
                                                     icon={<HiOutlineUserAdd />}
                                                     disabled
@@ -896,24 +932,28 @@ const RoomManagement = () => {
                                             </span>
                                         </Tooltip>
                                     )}
-                                    <Button
-                                        size="xs"
-                                        variant="plain"
-                                        onClick={() =>
-                                            console.log('Edit room', room.id)
-                                        }
-                                    >
-                                        Edit
-                                    </Button>
-                                    <Button
-                                        size="xs"
-                                        variant="solid"
-                                        onClick={() =>
-                                            console.log('View details', room.id)
-                                        }
-                                    >
-                                        Details
-                                    </Button>
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            size="sm"
+                                            variant="plain"
+                                            onClick={() =>
+                                                console.log('Edit room', room.id)
+                                            }
+                                        >
+                                            Edit
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            onClick={() =>
+                                                console.log(
+                                                    'View details',
+                                                    room.id,
+                                                )
+                                            }
+                                        >
+                                            Details
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </Card>
@@ -944,11 +984,12 @@ const RoomManagement = () => {
                 </div>
             )}
         </div>
-    )
+        )
+    }
 
     // Render statistics cards
     const renderStats = () => (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex items-center">
                 <div className="p-3 rounded-full bg-blue-500/10 text-2xl text-blue-500">
                     <HiOutlineViewGrid />

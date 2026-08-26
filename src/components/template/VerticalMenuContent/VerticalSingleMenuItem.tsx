@@ -4,6 +4,8 @@ import AuthorityCheck from '@/components/shared/AuthorityCheck'
 import VerticalMenuIcon from './VerticalMenuIcon'
 import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
+import { useAppDispatch } from '@/store'
+import { toggleAdminPanel } from '@/store/theme/themeSlice'
 import type { CommonProps } from '@/@types/common'
 import type { Direction } from '@/@types/theme'
 import type { NavigationTree } from '@/@types/navigation'
@@ -46,11 +48,16 @@ const CollapsedItem = ({
 const DefaultItem = (props: DefaultItemProps) => {
     const { nav, onLinkClick, sideCollapsed, userAuthority } = props
     const isDisabled = nav.disabled
+    const dispatch = useAppDispatch()
 
     const handleClick = (e: React.MouseEvent) => {
         if (isDisabled) {
             e.preventDefault()
             return
+        }
+        if (nav.action === 'toggleAdminPanel') {
+            e.preventDefault()
+            dispatch(toggleAdminPanel())
         }
         onLinkClick?.({
             key: nav.key,
@@ -61,9 +68,9 @@ const DefaultItem = (props: DefaultItemProps) => {
 
     return (
         <AuthorityCheck userAuthority={userAuthority} authority={nav.authority}>
-            <MenuItem 
-                key={nav.key} 
-                eventKey={nav.key} 
+            <MenuItem
+                key={nav.key}
+                eventKey={nav.key}
                 className={`mb-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                 disabled={isDisabled}
             >

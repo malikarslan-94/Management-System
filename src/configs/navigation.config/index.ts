@@ -103,16 +103,38 @@ const navigationConfig: NavigationTree[] = [
         subMenu: [],
     },
     {
-        key: 'roleAccessManagement',
-        path: '#',
-        isExternalLink: true,
-        title: 'Settings & Roles',
-        translateKey: 'nav.settingsRoles',
-        icon: 'settings',
-        type: NAV_ITEM_TYPE_ITEM,
-        disabled: true,
-        authority: ['admin'], // restrict to admin only
-        subMenu: [],
+        key: 'administration',
+        path: '',
+        title: 'Administration',
+        translateKey: 'nav.administration',
+        icon: '',
+        type: NAV_ITEM_TYPE_TITLE,
+        authority: [],
+        subMenu: [
+            {
+                key: 'adminPanel',
+                path: '#',
+                title: 'Admin Panel',
+                translateKey: 'nav.adminPanel',
+                icon: 'shieldLock',
+                type: NAV_ITEM_TYPE_ITEM,
+                authority: [],
+                subMenu: [],
+                action: 'toggleAdminPanel',
+            },
+            {
+                key: 'roleAccessManagement',
+                path: '#',
+                isExternalLink: true,
+                title: 'Settings & Roles',
+                translateKey: 'nav.settingsRoles',
+                icon: 'settings',
+                type: NAV_ITEM_TYPE_ITEM,
+                disabled: true,
+                authority: ['admin'], // restrict to admin only
+                subMenu: [],
+            },
+        ],
     },
 ]
 
