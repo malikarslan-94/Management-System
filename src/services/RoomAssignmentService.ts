@@ -123,6 +123,9 @@ export interface AssignmentFilters {
   status?: 'active' | 'completed' | 'cancelled'
   page?: number
   limit?: number
+  expectedCheckoutFrom?: string
+  expectedCheckoutTo?: string
+  sortBy?: 'expectedCheckoutDate'
 }
 
 export interface AssignmentResponse {
@@ -146,6 +149,9 @@ export const getRoomAssignments = async (
     if (filters?.status) queryParams.append('status', filters.status)
     if (filters?.page) queryParams.append('page', filters.page.toString())
     if (filters?.limit) queryParams.append('limit', filters.limit.toString())
+    if (filters?.expectedCheckoutFrom) queryParams.append('expectedCheckoutFrom', filters.expectedCheckoutFrom)
+    if (filters?.expectedCheckoutTo) queryParams.append('expectedCheckoutTo', filters.expectedCheckoutTo)
+    if (filters?.sortBy) queryParams.append('sortBy', filters.sortBy)
 
     const url = `${API_BASE_URL}/api/assignments${
       queryParams.toString() ? `?${queryParams.toString()}` : ''
@@ -169,5 +175,4 @@ export const getRoomAssignments = async (
     throw error
   }
 }
-
 

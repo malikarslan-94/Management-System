@@ -74,6 +74,7 @@ const SideNav = () => {
         <VerticalMenuContent
             navMode={navMode}
             collapsed={sideNavCollapse}
+            navigationLabel="Management"
             navigationTree={mainNavigationConfig}
             routeKey={currentRouteKey}
             userAuthority={userAuthority as string[]}

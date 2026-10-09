@@ -34,13 +34,36 @@ async function getAssignment(req, res, next) {
 // Get all assignments with optional filters
 router.get('/', async (req, res) => {
     try {
-        const { roomId, occupantId, status, page = 1, limit = 10 } = req.query
+        const {
+            roomId, occupantId, status, page = 1, limit = 10,
+            expectedCheckoutFrom, expectedCheckoutTo, sortBy,
+        } = req.query
 
         // Build query filter
         const filter = {}
         if (roomId) filter.roomId = roomId
         if (occupantId) filter.occupantId = occupantId
         if (status) filter.status = status
+
+        // Optional dashboard filters; existing callers keep their query and sort.
+        if (expectedCheckoutFrom || expectedCheckoutTo) {
+            const range = {}
+            for (const [value, operator] of [
+                [expectedCheckoutFrom, '$gte'],
+                [expectedCheckoutTo, '$lte'],
+            ]) {
+                if (!value) continue
+                const date = typeof value === 'string' ? new Date(value) : new Date(NaN)
+                if (Number.isNaN(date.getTime())) {
+                    return res.status(400).json({ message: 'Invalid checkout date filter' })
+                }
+                range[operator] = date
+            }
+            if (range.$gte && range.$lte && range.$gte > range.$lte) {
+                return res.status(400).json({ message: 'Checkout date range is reversed' })
+            }
+            filter.expectedCheckoutDate = range
+        }
 
         // Pagination
         const pageNum = parseInt(page)
@@ -56,7 +79,9 @@ router.get('/', async (req, res) => {
                     select: 'name location',
                 },
             })
-            .sort({ createdAt: -1 })
+            .sort(sortBy === 'expectedCheckoutDate'
+                ? { expectedCheckoutDate: 1, _id: 1 }
+                : { createdAt: -1 })
             .skip(skip)
             .limit(limitNum)
             .lean()
@@ -341,4 +366,3 @@ router.delete('/:id', getAssignment, async (req, res) => {
 })
 
 module.exports = router
-

@@ -2,6 +2,7 @@ import Tooltip from '@/components/ui/Tooltip'
 import Menu from '@/components/ui/Menu'
 import AuthorityCheck from '@/components/shared/AuthorityCheck'
 import VerticalMenuIcon from './VerticalMenuIcon'
+import classNames from 'classnames'
 import { Link } from 'react-router-dom'
 import { Trans, useTranslation } from 'react-i18next'
 import { useAppDispatch } from '@/store'
@@ -71,23 +72,35 @@ const DefaultItem = (props: DefaultItemProps) => {
             <MenuItem
                 key={nav.key}
                 eventKey={nav.key}
-                className={`mb-2 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={classNames('campwise-nav-item', {
+                    'campwise-nav-item-disabled': isDisabled,
+                })}
                 disabled={isDisabled}
             >
                 <Link
                     to={isDisabled ? '#' : nav.path}
-                    className={`flex items-center gap-2 h-full w-full ${isDisabled ? 'pointer-events-none' : ''}`}
+                    aria-disabled={isDisabled || undefined}
+                    className={classNames(
+                        'campwise-nav-link flex items-center h-full w-full',
+                        isDisabled && 'pointer-events-none',
+                    )}
+                    tabIndex={isDisabled ? -1 : undefined}
                     target={nav.isExternalLink ? '_blank' : ''}
                     onClick={handleClick}
                 >
                     <VerticalMenuIcon icon={nav.icon} />
                     {!sideCollapsed && (
-                        <span className={isDisabled ? 'opacity-50' : ''}>
-                            <Trans
-                                i18nKey={nav.translateKey}
-                                defaults={nav.title}
-                            />
-                        </span>
+                        <>
+                            <span className="campwise-nav-label">
+                                <Trans
+                                    i18nKey={nav.translateKey}
+                                    defaults={nav.title}
+                                />
+                            </span>
+                            {isDisabled && (
+                                <span className="campwise-nav-soon">Soon</span>
+                            )}
+                        </>
                     )}
                 </Link>
             </MenuItem>

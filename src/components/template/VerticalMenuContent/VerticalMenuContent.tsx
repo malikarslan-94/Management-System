@@ -17,6 +17,7 @@ import type { NavigationTree } from '@/@types/navigation'
 export interface VerticalMenuContentProps {
     navMode: NavMode
     collapsed?: boolean
+    navigationLabel?: string
     routeKey: string
     navigationTree?: NavigationTree[]
     userAuthority: string[]
@@ -30,6 +31,7 @@ const VerticalMenuContent = (props: VerticalMenuContentProps) => {
     const {
         navMode = themeConfig.navMode,
         collapsed,
+        navigationLabel,
         routeKey,
         navigationTree = [],
         userAuthority = [],
@@ -122,12 +124,18 @@ const VerticalMenuContent = (props: VerticalMenuContentProps) => {
 
     return (
         <Menu
-            className="px-4 pb-4"
+            className="campwise-navigation px-4 pb-4"
             variant={navMode}
             sideCollapsed={collapsed}
+            menuItemHeight={44}
             defaultActiveKeys={activedRoute?.key ? [activedRoute.key] : []}
             defaultExpandedKeys={defaulExpandKey}
         >
+            {navigationLabel && !collapsed && (
+                <div className="campwise-navigation-title">
+                    {navigationLabel}
+                </div>
+            )}
             {navigationTree.map((nav) => getNavItem(nav))}
         </Menu>
     )

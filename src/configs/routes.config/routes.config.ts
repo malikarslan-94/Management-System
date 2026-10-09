@@ -10,6 +10,7 @@ export const protectedRoutes = [
         path: '/home',
         component: lazy(() => import('@/views/Home')),
         authority: [],
+        meta: { pageContainerType: 'gutterless' as const },
     },
     /** Example purpose only, please remove */
     {
