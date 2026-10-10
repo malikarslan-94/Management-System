@@ -1,0 +1,32 @@
+MEET CAMPWISE
+Meet CampWise. One place to manage your camps, rooms, and everyday accommodation operations.
+
+01 / DASHBOARD
+Start with a clear overview of your camps, rooms, employees, and occupancy. Quick actions put common tasks within reach, while checkout reminders and maintenance summaries help you see what needs attention.
+
+02 / CAMPWISE AI
+Need information without clicking through screens and adjusting filters? Open CampWise AI and ask in plain English. Here, we ask for three available rooms and their camp names. The assistant brings the room details into the conversation, so you can find the information in one place.
+
+02 / CAMPWISE AI
+Now ask for your camp list. The assistant returns the camp names, right here in chat. No need to leave the dashboard for this lookup. Ask your question, review the answer, and move on with your work.
+
+03 / LOCATIONS
+Let's walk through a new camp setup. First, create North Campus as a location, and add a short address note. Locations organize your camps by site or area.
+
+04 / CAMPS
+Under North Campus, create Horizon Camp. Choose a single building with two floors. CampWise creates the building as part of the camp setup. You can also organize larger camps into multiple buildings, each with its own floor count.
+
+05 / ROOMS
+Next, add room H one oh one to Horizon Camp. Select the floor, choose a double room, set its capacity, and add amenities. The room starts as available. Room records also support occupied, maintenance, and cleaning states, helping you distinguish rooms ready for use from those needing attention.
+
+06 / ASSIGNMENTS
+Now assign the room to an employee already in the system. Select the room and employee, then set the start and expected checkout dates. Save the assignment and review the active stay, with its occupant and room details together.
+
+07 / CHECKOUT
+When the stay ends, open the assignment and check the employee out. The assignment becomes completed, and the occupied room becomes available again.
+
+08 / MAINTENANCE
+For a repair, select the camp and room, describe the issue, and mark it urgent when needed. Here, we submit an air conditioning repair request. The request and urgent counters update on this device, giving you a quick view of recorded submissions.
+
+CAMPWISE
+Back on the dashboard, review the updated camp, room, and maintenance summaries. CampWise brings everyday operations together, with AI chat to help you find answers along the way.

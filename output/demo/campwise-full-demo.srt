@@ -1,0 +1,163 @@
+1
+00:00:00,400 --> 00:00:06,378
+Meet CampWise. One place to manage your camps, rooms, and everyday accommodation
+
+2
+00:00:06,378 --> 00:00:07,200
+operations.
+
+3
+00:00:08,400 --> 00:00:14,192
+Start with a clear overview of your camps, rooms, employees, and occupancy.
+
+4
+00:00:14,423 --> 00:00:18,569
+Quick actions put common tasks within reach, while checkout reminders and
+
+5
+00:00:18,569 --> 00:00:21,750
+maintenance summaries help you see what needs attention.
+
+6
+00:00:22,400 --> 00:00:27,196
+Need information without clicking through screens and adjusting filters? Open
+
+7
+00:00:27,196 --> 00:00:29,500
+CampWise AI and ask in plain English.
+
+8
+00:00:31,775 --> 00:00:35,675
+Here, we ask for three available rooms and their camp names.
+
+9
+00:00:37,950 --> 00:00:42,369
+The assistant brings the room details into the conversation, so you can find the
+
+10
+00:00:42,369 --> 00:00:43,750
+information in one place.
+
+11
+00:00:44,400 --> 00:00:46,400
+Now ask for your camp list.
+
+12
+00:00:48,750 --> 00:00:52,100
+The assistant returns the camp names, right here in chat.
+
+13
+00:00:54,450 --> 00:00:59,469
+No need to leave the dashboard for this lookup. Ask your question, review the
+
+14
+00:00:59,469 --> 00:01:01,750
+answer, and move on with your work.
+
+15
+00:01:02,400 --> 00:01:04,500
+Let's walk through a new camp setup.
+
+16
+00:01:05,675 --> 00:01:10,675
+First, create North Campus as a location, and add a short address note.
+
+17
+00:01:11,850 --> 00:01:15,750
+Locations organize your camps by site or area.
+
+18
+00:01:16,400 --> 00:01:20,150
+Under North Campus, create Horizon Camp.
+
+19
+00:01:21,050 --> 00:01:26,672
+Choose a single building with two floors. CampWise creates the building as part of
+
+20
+00:01:26,672 --> 00:01:27,700
+the camp setup.
+
+21
+00:01:28,600 --> 00:01:33,403
+You can also organize larger camps into multiple buildings, each with its own floor
+
+22
+00:01:33,403 --> 00:01:33,750
+count.
+
+23
+00:01:34,400 --> 00:01:38,850
+Next, add room H one oh one to Horizon Camp.
+
+24
+00:01:39,225 --> 00:01:45,275
+Select the floor, choose a double room, set its capacity, and add amenities.
+
+25
+00:01:45,650 --> 00:01:50,493
+The room starts as available. Room records also support occupied, maintenance, and
+
+26
+00:01:50,493 --> 00:01:55,159
+cleaning states, helping you distinguish rooms ready for use from those needing
+
+27
+00:01:55,159 --> 00:01:55,750
+attention.
+
+28
+00:01:56,400 --> 00:01:59,750
+Now assign the room to an employee already in the system.
+
+29
+00:02:01,350 --> 00:02:06,400
+Select the room and employee, then set the start and expected checkout dates.
+
+30
+00:02:08,000 --> 00:02:13,181
+Save the assignment and review the active stay, with its occupant and room details
+
+31
+00:02:13,181 --> 00:02:13,750
+together.
+
+32
+00:02:14,400 --> 00:02:19,300
+When the stay ends, open the assignment and check the employee out.
+
+33
+00:02:20,850 --> 00:02:25,750
+The assignment becomes completed, and the occupied room becomes available again.
+
+34
+00:02:26,400 --> 00:02:31,657
+For a repair, select the camp and room, describe the issue, and mark it urgent when
+
+35
+00:02:31,657 --> 00:02:32,100
+needed.
+
+36
+00:02:34,225 --> 00:02:37,275
+Here, we submit an air conditioning repair request.
+
+37
+00:02:39,400 --> 00:02:44,443
+The request and urgent counters update on this device, giving you a quick view of
+
+38
+00:02:44,443 --> 00:02:45,750
+recorded submissions.
+
+39
+00:02:46,400 --> 00:02:51,350
+Back on the dashboard, review the updated camp, room, and maintenance summaries.
+
+40
+00:02:51,800 --> 00:02:56,891
+CampWise brings everyday operations together, with AI chat to help you find answers
+
+41
+00:02:56,891 --> 00:02:57,750
+along the way.
