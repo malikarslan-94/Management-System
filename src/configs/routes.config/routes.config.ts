@@ -6,6 +6,35 @@ export const publicRoutes: Routes = [...authRoute]
 
 export const protectedRoutes = [
     {
+        key: 'checkInOut',
+        path: '/check-in-out',
+        component: lazy(() => import('@/views/admin/features/CheckInOut')),
+        authority: [],
+        meta: { pageContainerType: 'gutterless' as const },
+    },
+    {
+        key: 'recreationFacilities',
+        path: '/facilities',
+        component: lazy(() => import('@/views/admin/features/Facilities')),
+        authority: [],
+        meta: { pageContainerType: 'gutterless' as const },
+    },
+    {
+        key: 'reports',
+        path: '/reports',
+        component: lazy(() => import('@/views/admin/features/Reports')),
+        authority: [],
+        meta: { pageContainerType: 'gutterless' as const },
+    },
+    {
+        key: 'roleAccessManagement',
+        path: '/settings-roles',
+        component: lazy(() => import('@/views/admin/features/SettingsRoles')),
+        authority: ['admin'],
+        meta: { pageContainerType: 'gutterless' as const },
+    },
+
+    {
         key: 'home',
         path: '/home',
         component: lazy(() => import('@/views/Home')),
@@ -46,9 +75,7 @@ export const protectedRoutes = [
     {
         key: 'inventoryMaintenance',
         path: '/inventory-maintenance',
-        component: lazy(
-            () => import('@/views/admin/InventoryMaintenance'),
-        ),
+        component: lazy(() => import('@/views/admin/InventoryMaintenance')),
         authority: [],
     },
     // {

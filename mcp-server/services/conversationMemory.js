@@ -8,7 +8,7 @@ class ConversationMemory {
         this.sessionTimeout = parseInt(process.env.SESSION_TIMEOUT || '3600000') // 1 hour
 
         // Cleanup expired sessions every 10 minutes
-        setInterval(() => this.cleanupExpiredSessions(), 10 * 60 * 1000)
+        setInterval(() => this.cleanupExpiredSessions(), 10 * 60 * 1000).unref()
     }
 
     /**

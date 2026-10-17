@@ -110,16 +110,7 @@ const AskAIWidget: React.FC<AskAIWidgetProps> = ({
                 } catch (mcpError) {
                     const serverMessage = (mcpError instanceof Error ? mcpError.message : String(mcpError)) || 'Something went wrong. Please try again.'
                     console.log('[FE] MCP error:', serverMessage.slice(0, 60))
-                    const isConnectionError = /unable to connect|failed to send|network|timeout/i.test(serverMessage)
-                    if (isConnectionError) {
-                        try {
-                            response = await simulateAIResponse(messageToSend)
-                        } catch {
-                            response = 'I\'m having trouble connecting. Please check the connection and try again.'
-                        }
-                    } else {
-                        response = serverMessage.trim() || 'Something went wrong. Please try again.'
-                    }
+                    response = serverMessage.trim() || 'Unable to connect to AI. Please try again.'
                 }
             }
 
@@ -173,18 +164,6 @@ const AskAIWidget: React.FC<AskAIWidgetProps> = ({
             e.preventDefault()
             handleSend()
         }
-    }
-
-    const simulateAIResponse = async (userMessage: string): Promise<string> => {
-        await new Promise((resolve) => setTimeout(resolve, 2000 + Math.random() * 1000))
-        const lowerMessage = userMessage.toLowerCase()
-        if (lowerMessage.includes('employee') || lowerMessage.includes('staff'))
-            return 'I can help you with employee management. You can add, edit, or view employee details. What specific information do you need?'
-        if (lowerMessage.includes('room') || lowerMessage.includes('camp'))
-            return 'I can assist with room and camp management. You can check availability, assign rooms, or manage camp information. How can I help?'
-        if (lowerMessage.includes('hello') || lowerMessage.includes('hi'))
-            return "Hello! I'm your AI assistant. How can I help you today?"
-        return `I understand you're asking about "${userMessage}". This is a simulated response. The actual AI integration will be connected soon.`
     }
 
     const buttonColor = `${themeColor}-${primaryColorLevel}`

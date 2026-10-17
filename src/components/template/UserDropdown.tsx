@@ -1,3 +1,4 @@
+import { useAppSelector } from '@/store'
 import Avatar from '@/components/ui/Avatar'
 import Dropdown from '@/components/ui/Dropdown'
 import withHeaderItem from '@/utils/hoc/withHeaderItem'
@@ -22,6 +23,8 @@ const dropdownItemList: DropdownList[] = []
 
 const _UserDropdown = ({ className }: CommonProps) => {
     const { signOut } = useAuth()
+    const user = useAppSelector(state => state.auth.user)
+    const role = user.authority?.[0]?.replaceAll('_', ' ') || 'Account'
 
     const UserAvatar = (
         <div className={className}>
@@ -29,10 +32,10 @@ const _UserDropdown = ({ className }: CommonProps) => {
                 <Avatar size={28} shape="circle" icon={<HiOutlineUser />} />
                 <div className="hidden md:block leading-tight">
                     <div className="font-semibold text-gray-900 dark:text-gray-100 text-xs">
-                        User01
+                        {user.user || 'Account'}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                        admin
+                        {role}
                     </div>
                 </div>
                 <HiOutlineChevronDown className="hidden md:block text-gray-400" />
@@ -52,9 +55,9 @@ const _UserDropdown = ({ className }: CommonProps) => {
                         <Avatar shape="circle" icon={<HiOutlineUser />} />
                         <div>
                             <div className="font-bold text-gray-900 dark:text-gray-100">
-                                User01
+                                {user.user || 'Account'}
                             </div>
-                            <div className="text-xs">user01@mail.com</div>
+                            <div className="text-xs">{user.email}</div>
                         </div>
                     </div>
                 </Dropdown.Item>

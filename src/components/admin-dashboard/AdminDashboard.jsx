@@ -3,6 +3,7 @@ import { Button, FormContainer, FormItem, Input } from '@/components/ui'
 import { Select } from '@/components/ui/select'
 import { useAppDispatch, useAppSelector } from '@/store'
 import { toggleAdminPanel } from '@/store/theme/themeSlice'
+import { useNavigate } from 'react-router-dom'
 import React, { useCallback, useEffect, useState } from 'react'
 import { HiArrowLeft, HiOutlineDuplicate, HiOutlinePlus } from 'react-icons/hi'
 import { useBuildings } from '../../hooks/useBuildings'
@@ -27,7 +28,6 @@ import LoaderOverlay from './LoaderOverlay'
 import RoomForm from './RoomForm'
 import RoomsList from './RoomsList'
 import Sidebar from './Sidebar'
-import UsersList from './UsersList'
 
 const getInitialFormData = (tab) => {
     if (tab === 'camps') {
@@ -65,7 +65,6 @@ const getInitialFormData = (tab) => {
         }
     }
     return {
-        type: 'room',
         camp: '', // Used only to filter the building list; the API derives it
         buildingId: '',
         floor: 1,
@@ -83,6 +82,7 @@ const getInitialFormData = (tab) => {
 
 const AdminDashboard = () => {
     const dispatch = useAppDispatch()
+    const navigate = useNavigate()
     const {
         camps,
         loading: campsLoading,
@@ -194,7 +194,14 @@ const AdminDashboard = () => {
             fields = ['firstName', 'lastName', 'email', 'phone', 'employeeType']
         } else {
             // buildingId is required now — a room cannot exist outside a building.
-            fields = ['camp', 'buildingId', 'roomNumber', 'type', 'capacity', 'price']
+            fields = [
+                'camp',
+                'buildingId',
+                'roomNumber',
+                'type',
+                'capacity',
+                'price',
+            ]
         }
         return fields.every((field) => validateField(field, formData[field]))
     }, [activeTab, formData, validateField])
@@ -234,7 +241,10 @@ const AdminDashboard = () => {
 
     const handleSaveBuilding = async () => {
         if (!buildingTargetCamp || !buildingForm.name.trim()) {
-            setErrors((prev) => ({ ...prev, buildingName: 'Building name is required' }))
+            setErrors((prev) => ({
+                ...prev,
+                buildingName: 'Building name is required',
+            }))
             return
         }
         setBuildingSubmitting(true)
@@ -313,23 +323,17 @@ const AdminDashboard = () => {
                         typeof formData.campId === 'object' && formData.campId
                             ? formData.campId._id || formData.campId
                             : formData.campId?.toString().trim() || undefined
-                    const currentRoomIdValue =
-                        typeof formData.currentRoomId === 'object' &&
-                        formData.currentRoomId
-                            ? formData.currentRoomId._id ||
-                              formData.currentRoomId
-                            : formData.currentRoomId?.toString().trim() || null
-
                     const employeeData = {
                         firstName: formData.firstName,
                         lastName: formData.lastName,
                         email: formData.email,
                         phone: formData.phone,
+                        iqamaNumber: formData.iqamaNumber,
+                        employeeId: formData.employeeId,
                         department: formData.department?.trim() || undefined,
                         designation: formData.designation?.trim() || undefined,
                         employeeType: formData.employeeType || 'Permanent',
                         campId: campIdValue,
-                        currentRoomId: currentRoomIdValue,
                         status: formData.status || 'Active',
                     }
                     // Remove undefined fields to avoid sending them
@@ -372,7 +376,10 @@ const AdminDashboard = () => {
 
                     const structureError = validateStructure(buildings)
                     if (structureError) {
-                        setErrors((prev) => ({ ...prev, buildingRows: structureError }))
+                        setErrors((prev) => ({
+                            ...prev,
+                            buildingRows: structureError,
+                        }))
                         return
                     }
 
@@ -392,23 +399,17 @@ const AdminDashboard = () => {
                         typeof formData.campId === 'object' && formData.campId
                             ? formData.campId._id || formData.campId
                             : formData.campId?.toString().trim() || undefined
-                    const currentRoomIdValue =
-                        typeof formData.currentRoomId === 'object' &&
-                        formData.currentRoomId
-                            ? formData.currentRoomId._id ||
-                              formData.currentRoomId
-                            : formData.currentRoomId?.toString().trim() || null
-
                     const employeeData = {
                         firstName: formData.firstName,
                         lastName: formData.lastName,
                         email: formData.email,
                         phone: formData.phone,
+                        iqamaNumber: formData.iqamaNumber,
+                        employeeId: formData.employeeId,
                         department: formData.department?.trim() || undefined,
                         designation: formData.designation?.trim() || undefined,
                         employeeType: formData.employeeType || 'Permanent',
                         campId: campIdValue,
-                        currentRoomId: currentRoomIdValue,
                         status: formData.status || 'Active',
                     }
                     // Remove undefined fields to avoid sending them
@@ -503,7 +504,9 @@ const AdminDashboard = () => {
         // References come back populated from the API, so flatten them to ids
         // before they reach the form's select inputs.
         const idOf = (value) =>
-            typeof value === 'object' && value !== null ? value._id || '' : value || ''
+            typeof value === 'object' && value !== null
+                ? value._id || ''
+                : value || ''
 
         const formData = {
             ...item,
@@ -526,7 +529,15 @@ const AdminDashboard = () => {
     return (
         <div className="fixed inset-0 z-40 flex">
             <div className="w-64 bg-white h-full shadow-lg">
-                <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+                <Sidebar
+                    activeTab={activeTab}
+                    onTabChange={(tab) => {
+                        if (tab === 'users') {
+                            dispatch(toggleAdminPanel())
+                            navigate('/settings-roles')
+                        } else setActiveTab(tab)
+                    }}
+                />
             </div>
             <div className="flex-1 bg-gray-100 h-full overflow-y-auto relative">
                 <div className="p-6">
@@ -577,8 +588,6 @@ const AdminDashboard = () => {
                                 onDelete={handleDelete}
                                 onView={handleViewEmployee}
                             />
-                        ) : activeTab === 'users' ? (
-                            <UsersList />
                         ) : (
                             <RoomsList
                                 rooms={rooms}
@@ -639,29 +648,43 @@ const AdminDashboard = () => {
                 isOpen={buildingModalOpen}
                 onClose={() => setBuildingModalOpen(false)}
                 title="Add building / block"
-                subtitle={buildingTargetCamp ? `Camp: ${buildingTargetCamp.name}` : undefined}
+                subtitle={
+                    buildingTargetCamp
+                        ? `Camp: ${buildingTargetCamp.name}`
+                        : undefined
+                }
                 onConfirm={handleSaveBuilding}
                 isLoading={buildingSubmitting}
                 confirmLabel="Save building"
             >
                 <FormContainer layout="vertical" size="sm">
-                    <FormItem label="Name" required extra="e.g. Block A, Building 1, Main Building">
+                    <FormItem
+                        label="Name"
+                        required
+                        extra="e.g. Block A, Building 1, Main Building"
+                    >
                         <Input
                             value={buildingForm.name}
                             onChange={(e) =>
-                                setBuildingForm((f) => ({ ...f, name: e.target.value }))
+                                setBuildingForm((f) => ({
+                                    ...f,
+                                    name: e.target.value,
+                                }))
                             }
                             placeholder="Building name"
                         />
                         {errors.buildingName && (
-                            <div className="text-xs text-red-600">{errors.buildingName}</div>
+                            <div className="text-xs text-red-600">
+                                {errors.buildingName}
+                            </div>
                         )}
                     </FormItem>
                     <FormItem label="Type">
                         <Select
                             value={
-                                BUILDING_TYPES.find((o) => o.value === buildingForm.type) ||
-                                BUILDING_TYPES[0]
+                                BUILDING_TYPES.find(
+                                    (o) => o.value === buildingForm.type,
+                                ) || BUILDING_TYPES[0]
                             }
                             onChange={(selected) =>
                                 setBuildingForm((f) => ({
@@ -679,11 +702,15 @@ const AdminDashboard = () => {
                     >
                         <Select
                             value={
-                                FLOOR_OPTIONS.find((o) => o.value === buildingForm.floors) ||
-                                FLOOR_OPTIONS[0]
+                                FLOOR_OPTIONS.find(
+                                    (o) => o.value === buildingForm.floors,
+                                ) || FLOOR_OPTIONS[0]
                             }
                             onChange={(selected) =>
-                                setBuildingForm((f) => ({ ...f, floors: selected?.value || '1' }))
+                                setBuildingForm((f) => ({
+                                    ...f,
+                                    floors: selected?.value || '1',
+                                }))
                             }
                             options={FLOOR_OPTIONS}
                             classNamePrefix="react-select"

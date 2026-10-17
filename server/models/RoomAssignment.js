@@ -38,6 +38,14 @@ const roomAssignmentSchema = new mongoose.Schema(
             enum: ['active', 'completed', 'cancelled'],
             default: 'active',
         },
+        notes: { type: String, maxlength: 2000, default: '' },
+        checkoutNotes: { type: String, maxlength: 2000, default: '' },
+        roomAfterCheckout: {
+            type: String,
+            enum: ['available', 'cleaning', 'maintenance'],
+        },
+        createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        checkedOutBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     },
     {
         timestamps: true,
@@ -52,5 +60,3 @@ roomAssignmentSchema.index({ startDate: 1 })
 roomAssignmentSchema.index({ roomId: 1, status: 1 })
 
 module.exports = mongoose.model('RoomAssignment', roomAssignmentSchema)
-
-

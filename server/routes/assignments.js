@@ -1,368 +1,182 @@
-const express = require('express')
-const router = express.Router()
-const RoomAssignment = require('../models/RoomAssignment')
+const router = require('express').Router()
+const Assignment = require('../models/RoomAssignment')
 const Room = require('../models/Room')
 const Employee = require('../models/Employee')
-
-// Middleware to get assignment by ID
-async function getAssignment(req, res, next) {
-    let assignment
-    try {
-        assignment = await RoomAssignment.findById(req.params.id)
-            .populate({
-                path: 'roomId',
-                select: 'roomNumber type capacity price amenities camp',
-                populate: {
-                    path: 'camp',
-                    select: 'name location',
-                },
-            })
-
-        if (assignment == null) {
-            return res
-                .status(404)
-                .json({ message: 'Cannot find room assignment' })
-        }
-    } catch (err) {
-        return res.status(500).json({ message: err.message })
+const Settings = require('../models/OrganizationSettings')
+const {
+    handle,
+    HttpError,
+    pagination,
+    escapeRegex,
+    date,
+} = require('../lib/http')
+const { scope } = require('../lib/access')
+const {
+    population,
+    withResidents,
+    createStay,
+    finishStay,
+} = require('../lib/stays')
+const { dayBounds, dateKey } = require('../lib/dates')
+async function filterFor(req) {
+    const rooms = await Room.find({
+        ...scope(req, 'camp'),
+        ...(req.query.campId ? { camp: req.query.campId } : {}),
+    }).select('_id')
+    const filter = { roomId: { $in: rooms.map((r) => r._id) } }
+    if (req.query.roomId) filter.$and = [{ roomId: req.query.roomId }]
+    if (req.query.occupantId) filter.occupantId = req.query.occupantId
+    if (req.query.status) filter.status = req.query.status
+    if (req.query.search) {
+        const rx = new RegExp(escapeRegex(req.query.search), 'i')
+        const people = await Employee.find({
+            ...scope(req),
+            $or: [{ firstName: rx }, { lastName: rx }, { employeeId: rx }],
+        }).select('_id')
+        const matchingRooms = await Room.find({
+            ...scope(req, 'camp'),
+            roomNumber: rx,
+        }).select('_id')
+        filter.$or = [
+            { occupantId: { $in: people.map((p) => p._id) } },
+            { roomId: { $in: matchingRooms.map((r) => r._id) } },
+        ]
     }
-
-    res.assignment = assignment
-    next()
+    if (req.query.expectedCheckoutFrom || req.query.expectedCheckoutTo) {
+        const range = {}
+        if (req.query.expectedCheckoutFrom)
+            range.$gte = date(req.query.expectedCheckoutFrom, 'checkout start')
+        if (req.query.expectedCheckoutTo)
+            range.$lte = date(req.query.expectedCheckoutTo, 'checkout end')
+        if (range.$gte && range.$lte && range.$gte > range.$lte)
+            throw new HttpError(400, 'Checkout date range is reversed.')
+        filter.expectedCheckoutDate = range
+    }
+    return filter
 }
-
-// Get all assignments with optional filters
-router.get('/', async (req, res) => {
-    try {
-        const {
-            roomId, occupantId, status, page = 1, limit = 10,
-            expectedCheckoutFrom, expectedCheckoutTo, sortBy,
-        } = req.query
-
-        // Build query filter
-        const filter = {}
-        if (roomId) filter.roomId = roomId
-        if (occupantId) filter.occupantId = occupantId
-        if (status) filter.status = status
-
-        // Optional dashboard filters; existing callers keep their query and sort.
-        if (expectedCheckoutFrom || expectedCheckoutTo) {
-            const range = {}
-            for (const [value, operator] of [
-                [expectedCheckoutFrom, '$gte'],
-                [expectedCheckoutTo, '$lte'],
-            ]) {
-                if (!value) continue
-                const date = typeof value === 'string' ? new Date(value) : new Date(NaN)
-                if (Number.isNaN(date.getTime())) {
-                    return res.status(400).json({ message: 'Invalid checkout date filter' })
-                }
-                range[operator] = date
-            }
-            if (range.$gte && range.$lte && range.$gte > range.$lte) {
-                return res.status(400).json({ message: 'Checkout date range is reversed' })
-            }
-            filter.expectedCheckoutDate = range
+router.get(
+    '/operations',
+    handle(async (req, res) => {
+        const settings = await Settings.findById('organization').lean()
+        const timezone = settings?.timezone || 'Asia/Riyadh'
+        const day = req.query.date || dateKey(new Date(), timezone)
+        const { start, end } = dayBounds(day, timezone)
+        // Expected checkout is stored as a calendar date by the existing forms.
+        const expectedStart = new Date(day + 'T00:00:00Z'),
+            expectedEnd = new Date(+expectedStart + 86400000)
+        const base = await filterFor(req)
+        const predicates = {
+            due: {
+                status: 'active',
+                expectedCheckoutDate: { $lt: expectedEnd },
+            },
+            checked_in: { checkInTime: { $gte: start, $lt: end } },
+            history: {
+                status: { $in: ['completed', 'cancelled'] },
+                checkOutTime: { $gte: start, $lt: end },
+            },
         }
-
-        // Pagination
-        const pageNum = parseInt(page)
-        const limitNum = parseInt(limit)
-        const skip = (pageNum - 1) * limitNum
-
-        const assignments = await RoomAssignment.find(filter)
-            .populate({
-                path: 'roomId',
-                select: 'roomNumber type capacity price amenities camp',
-                populate: {
-                    path: 'camp',
-                    select: 'name location',
-                },
-            })
-            .sort(sortBy === 'expectedCheckoutDate'
-                ? { expectedCheckoutDate: 1, _id: 1 }
-                : { createdAt: -1 })
-            .skip(skip)
-            .limit(limitNum)
-            .lean()
-
-        // Fetch employee details for each assignment
-        const assignmentsWithDetails = await Promise.all(
-            assignments.map(async (assignment) => {
-                if (assignment.occupantType === 'Employee') {
-                    try {
-                        const employee = await Employee.findById(
-                            assignment.occupantId,
-                        ).select('firstName lastName email phone department designation')
-                        return {
-                            ...assignment,
-                            occupantDetails: employee || null,
-                        }
-                    } catch (err) {
-                        return {
-                            ...assignment,
-                            occupantDetails: null,
-                        }
-                    }
-                }
-                return {
-                    ...assignment,
-                    occupantDetails: null,
-                }
+        const tab = req.query.tab || 'due'
+        if (!predicates[tab])
+            throw new HttpError(400, 'Invalid operations tab.')
+        const p = pagination(req.query)
+        const filter = { $and: [base, predicates[tab]] }
+        const records = await Assignment.find(filter)
+            .populate(population)
+            .sort({ expectedCheckoutDate: 1, _id: 1 })
+            .skip(p.skip)
+            .limit(p.limit)
+        const [total, checkedIn, due, overdue, checkedOut] = await Promise.all([
+            Assignment.countDocuments(filter),
+            Assignment.countDocuments({ $and: [base, predicates.checked_in] }),
+            Assignment.countDocuments({
+                $and: [
+                    base,
+                    {
+                        status: 'active',
+                        expectedCheckoutDate: {
+                            $gte: expectedStart,
+                            $lt: expectedEnd,
+                        },
+                    },
+                ],
             }),
-        )
-
-        const total = await RoomAssignment.countDocuments(filter)
-
+            Assignment.countDocuments({
+                $and: [
+                    base,
+                    {
+                        status: 'active',
+                        expectedCheckoutDate: { $lt: expectedStart },
+                    },
+                ],
+            }),
+            Assignment.countDocuments({
+                $and: [
+                    base,
+                    {
+                        status: 'completed',
+                        checkOutTime: { $gte: start, $lt: end },
+                    },
+                ],
+            }),
+        ])
         res.json({
-            data: assignmentsWithDetails,
+            data: await withResidents(records),
             total,
-            page: pageNum,
-            limit: limitNum,
-            totalPages: Math.ceil(total / limitNum),
+            page: p.page,
+            totalPages: Math.ceil(total / p.limit),
+            summary: { checkedIn, due, overdue, checkedOut },
+            timezone,
+            date: day,
         })
-    } catch (err) {
-        res.status(500).json({ message: err.message })
-    }
-})
-
-// Get single assignment by ID
-router.get('/:id', getAssignment, (req, res) => {
-    res.json(res.assignment)
-})
-
-// Create new assignment
-router.post('/', async (req, res) => {
-    try {
-        const {
-            roomId,
-            occupantId,
-            occupantType,
-            startDate,
-            expectedCheckoutDate,
-        } = req.body
-
-        // Validate required fields
-        if (!roomId || !occupantId || !occupantType || !startDate || !expectedCheckoutDate) {
-            return res.status(400).json({
-                message: 'Missing required fields: roomId, occupantId, occupantType, startDate, expectedCheckoutDate',
-            })
-        }
-
-        // Validate room exists and is available
-        const room = await Room.findById(roomId)
-        if (!room) {
-            return res.status(404).json({ message: 'Room not found' })
-        }
-
-        if (room.status !== 'available') {
-            return res
-                .status(400)
-                .json({ message: `Room is ${room.status} and cannot be assigned.` })
-        }
-
-        // Check if room already has active assignment
-        const existingActiveAssignment = await RoomAssignment.findOne({
-            roomId,
-            status: 'active',
-        })
-
-        if (existingActiveAssignment) {
-            return res.status(400).json({
-                message: 'Room already has an active assignment',
-            })
-        }
-
-        // If occupant is an employee, validate employee exists
-        if (occupantType === 'Employee') {
-            const employee = await Employee.findById(occupantId)
-            if (!employee) {
-                return res.status(404).json({ message: 'Employee not found' })
-            }
-
-            // Update employee's currentRoomId
-            employee.currentRoomId = roomId
-            await employee.save()
-
-            // Add to employee's room assignment history
-            if (!employee.roomAssignmentHistory) {
-                employee.roomAssignmentHistory = []
-            }
-            employee.roomAssignmentHistory.push({
-                roomId: roomId,
-                startDate: new Date(startDate),
-                endDate: null,
-            })
-            await employee.save()
-        }
-
-        // Create assignment
-        const assignment = new RoomAssignment({
-            roomId,
-            occupantId,
-            occupantType,
-            startDate: new Date(startDate),
-            expectedCheckoutDate: new Date(expectedCheckoutDate),
-            checkInTime: new Date(),
-            status: 'active',
-        })
-
-        const newAssignment = await assignment.save()
-
-        // Update room availability
-        room.status = 'occupied'
-        await room.save()
-
-        // Populate before returning
-        await newAssignment.populate({
-            path: 'roomId',
-            select: 'roomNumber type capacity price amenities camp',
-            populate: {
-                path: 'camp',
-                select: 'name location',
-            },
-        })
-
-        // Get occupant details
-        let occupantDetails = null
-        if (occupantType === 'Employee') {
-            occupantDetails = await Employee.findById(occupantId).select(
-                'firstName lastName email phone department designation',
+    }),
+)
+router.get(
+    '/',
+    handle(async (req, res) => {
+        const p = pagination(req.query),
+            filter = await filterFor(req)
+        const records = await Assignment.find(filter)
+            .populate(population)
+            .sort(
+                req.query.sortBy === 'expectedCheckoutDate'
+                    ? { expectedCheckoutDate: 1, _id: 1 }
+                    : { createdAt: -1 },
             )
-        }
-
-        res.status(201).json({
-            ...newAssignment.toObject(),
-            occupantDetails,
-        })
-    } catch (err) {
-        if (err.name === 'ValidationError') {
-            return res.status(400).json({ message: err.message })
-        }
-        res.status(500).json({ message: err.message })
-    }
-})
-
-// Update assignment (for checkout or status changes)
-router.put('/:id', getAssignment, async (req, res) => {
-    try {
-        const assignment = res.assignment
-        const { checkOutTime, status } = req.body
-
-        if (checkOutTime !== undefined) {
-            assignment.checkOutTime = new Date(checkOutTime)
-        }
-
-        if (status !== undefined) {
-            assignment.status = status
-        }
-
-        // If completing assignment, update room availability
-        if (status === 'completed' || status === 'cancelled') {
-            const room = await Room.findById(assignment.roomId)
-            // Only an occupied room frees up — a room pulled out for
-            // maintenance while assigned must not be flipped back to available.
-            if (room && room.status === 'occupied') {
-                room.status = 'available'
-                await room.save()
-            }
-
-            // Update employee's currentRoomId if it matches
-            if (assignment.occupantType === 'Employee') {
-                const employee = await Employee.findById(assignment.occupantId)
-                if (employee && employee.currentRoomId?.toString() === assignment.roomId.toString()) {
-                    employee.currentRoomId = null
-
-                    // Update assignment history end date
-                    if (employee.roomAssignmentHistory) {
-                        const historyItem = employee.roomAssignmentHistory.find(
-                            (item) =>
-                                item.roomId?.toString() === assignment.roomId.toString() &&
-                                !item.endDate,
-                        )
-                        if (historyItem) {
-                            historyItem.endDate = new Date(checkOutTime || Date.now())
-                        }
-                    }
-
-                    await employee.save()
-                }
-            }
-        }
-
-        const updatedAssignment = await assignment.save()
-
-        // Populate before returning
-        await updatedAssignment.populate({
-            path: 'roomId',
-            select: 'roomNumber type capacity price amenities camp',
-            populate: {
-                path: 'camp',
-                select: 'name location',
-            },
-        })
-
-        // Get occupant details
-        let occupantDetails = null
-        if (updatedAssignment.occupantType === 'Employee') {
-            occupantDetails = await Employee.findById(updatedAssignment.occupantId).select(
-                'firstName lastName email phone department designation',
-            )
-        }
-
+            .skip(p.skip)
+            .limit(p.limit)
+        const total = await Assignment.countDocuments(filter)
         res.json({
-            ...updatedAssignment.toObject(),
-            occupantDetails,
+            data: await withResidents(records),
+            total,
+            page: p.page,
+            limit: p.limit,
+            totalPages: Math.ceil(total / p.limit),
         })
-    } catch (err) {
-        res.status(400).json({ message: err.message })
-    }
-})
-
-// Delete assignment (soft delete by setting status to cancelled)
-router.delete('/:id', getAssignment, async (req, res) => {
-    try {
-        const assignment = res.assignment
-
-        // Mark as cancelled instead of deleting
-        assignment.status = 'cancelled'
-        assignment.checkOutTime = new Date()
-
-        // Update room availability
-        const room = await Room.findById(assignment.roomId)
-        if (room && room.status === 'occupied') {
-            room.status = 'available'
-            await room.save()
-        }
-
-        // Update employee's currentRoomId if it matches
-        if (assignment.occupantType === 'Employee') {
-            const employee = await Employee.findById(assignment.occupantId)
-            if (employee && employee.currentRoomId?.toString() === assignment.roomId.toString()) {
-                employee.currentRoomId = null
-
-                // Update assignment history end date
-                if (employee.roomAssignmentHistory) {
-                    const historyItem = employee.roomAssignmentHistory.find(
-                        (item) =>
-                            item.roomId?.toString() === assignment.roomId.toString() &&
-                            !item.endDate,
-                    )
-                    if (historyItem) {
-                        historyItem.endDate = new Date()
-                    }
-                }
-
-                await employee.save()
-            }
-        }
-
-        await assignment.save()
-
-        res.json({ message: 'Assignment cancelled successfully' })
-    } catch (err) {
-        res.status(500).json({ message: err.message })
-    }
-})
-
+    }),
+)
+router.get(
+    '/:id',
+    handle(async (req, res) => {
+        const record = await Assignment.findById(req.params.id).populate(
+            population,
+        )
+        if (!record) throw new HttpError(404, 'Stay not found.')
+        res.json((await withResidents([record]))[0])
+    }),
+)
+router.post(
+    '/',
+    handle(async (req, res) => res.status(201).json(await createStay(req))),
+)
+router.put(
+    '/:id',
+    handle(async (req, res) =>
+        res.json(await finishStay(req, req.body.status)),
+    ),
+)
+router.delete(
+    '/:id',
+    handle(async (req, res) => res.json(await finishStay(req, 'cancelled'))),
+)
 module.exports = router

@@ -16,7 +16,7 @@ const appConfig: AppConfig = {
     unAuthenticatedEntryPath: '/sign-in',
     tourPath: '/',
     locale: 'en',
-    enableMock: databaseConfig.enableMock,
+    enableMock: databaseConfig.mockEnabled,
     apiBaseUrl: databaseConfig.apiBaseUrl,
 }
 

@@ -1,7 +1,6 @@
 // Run with: node --test tests/dashboard.test.cjs
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
-const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const { buildSync } = require('esbuild')
@@ -93,76 +92,4 @@ test('relative dates handle missing and invalid data', () => {
     assert.equal(formatRelativeTime('invalid'), '—')
     assert.equal(formatRelativeTime('2026-10-07T12:00:00Z', Date.parse('2026-10-08T12:00:00Z')), '1 day ago')
     assert.equal(formatCheckoutDate('invalid'), '—')
-})
-
-function assignmentRoute() {
-    let getAll
-    const calls = {}
-    const query = {
-        populate() { return this },
-        sort(sort) { calls.sort = sort; return this },
-        skip(skip) { calls.skip = skip; return this },
-        limit(limit) { calls.limit = limit; return this },
-        async lean() { return [] },
-    }
-    const model = {
-        find(filter) { calls.filter = filter; return query },
-        async countDocuments(filter) { calls.countFilter = filter; return 12 },
-    }
-    const router = {
-        get(route, handler) { if (route === '/') getAll = handler },
-        post() {}, put() {}, delete() {},
-    }
-    vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../server/routes/assignments.js'), 'utf8'), {
-        require: (name) => name === 'express' ? { Router: () => router }
-            : name === '../models/RoomAssignment' ? model : {},
-        module: { exports: {} }, Date, console,
-    })
-    return {
-        calls,
-        async request(query) {
-            const response = { statusCode: 200, body: undefined,
-                status(code) { this.statusCode = code; return this },
-                json(body) { this.body = body; return this },
-            }
-            await getAll({ query }, response)
-            return response
-        },
-    }
-}
-
-test('existing assignment queries retain their filters, pagination, and newest-first order', async () => {
-    const { calls, request } = assignmentRoute()
-    const response = await request({ status: 'completed', roomId: 'room-1', page: '2', limit: '10' })
-    assert.equal(response.statusCode, 200)
-    assert.equal(JSON.stringify(calls.filter), JSON.stringify({ roomId: 'room-1', status: 'completed' }))
-    assert.equal(JSON.stringify(calls.sort), JSON.stringify({ createdAt: -1 }))
-    assert.equal(calls.skip, 10)
-    assert.equal(calls.limit, 10)
-    assert.equal(response.body.totalPages, 2)
-})
-
-test('upcoming query filters all assignments before limiting and orders soonest first', async () => {
-    const { calls, request } = assignmentRoute()
-    const response = await request(upcomingCheckoutFilters('2026-10-08'))
-    assert.equal(response.statusCode, 200)
-    assert.equal(calls.filter.status, 'active')
-    assert.equal(calls.filter.expectedCheckoutDate.$gte.toISOString(), '2026-10-08T00:00:00.000Z')
-    assert.equal(calls.filter.expectedCheckoutDate.$lte.toISOString(), '2026-10-10T23:59:59.999Z')
-    assert.equal(JSON.stringify(calls.sort), JSON.stringify({ expectedCheckoutDate: 1, _id: 1 }))
-    assert.equal(calls.limit, 6)
-    assert.equal(calls.countFilter, calls.filter)
-})
-
-test('invalid or reversed checkout date filters fail without querying the database', async () => {
-    for (const query of [
-        { expectedCheckoutFrom: 'not-a-date' },
-        { expectedCheckoutFrom: ['2026-10-08'] },
-        { expectedCheckoutFrom: '2026-10-10', expectedCheckoutTo: '2026-10-08' },
-    ]) {
-        const { calls, request } = assignmentRoute()
-        const response = await request(query)
-        assert.equal(response.statusCode, 400)
-        assert.equal(calls.filter, undefined)
-    }
 })

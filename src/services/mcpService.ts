@@ -1,3 +1,4 @@
+import { getAccessToken } from './authToken'
 import axios from 'axios'
 
 const MCP_API_URL = import.meta.env.VITE_MCP_API_URL || 'http://localhost:3002'
@@ -55,7 +56,7 @@ class MCPService {
      */
     private getAuthToken(): string | undefined {
         // Try to get from localStorage (common pattern)
-        const token = localStorage.getItem('token') || localStorage.getItem('authToken')
+        const token = getAccessToken()
         return token || undefined
     }
 

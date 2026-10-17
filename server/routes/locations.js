@@ -1,3 +1,4 @@
+const { scope } = require('../lib/access')
 const express = require('express')
 const router = express.Router()
 const Location = require('../models/Location')
@@ -6,11 +7,11 @@ const Room = require('../models/Room')
 const { HttpError, handle, assertNoChildren } = require('../validators/hierarchy')
 
 /** Live camp/room counts per location, in two queries rather than one per row. */
-async function attachCounts(locations) {
+async function attachCounts(locations, req) {
     if (locations.length === 0) return []
     const ids = locations.map((l) => l._id)
 
-    const camps = await Camp.find({ locationId: { $in: ids } }).select('_id locationId')
+    const camps = await Camp.find({ ...scope(req, '_id'), locationId: { $in: ids } }).select('_id locationId')
     const campIds = camps.map((c) => c._id)
 
     const roomCounts = await Room.aggregate([
@@ -38,8 +39,9 @@ async function attachCounts(locations) {
 router.get(
     '/',
     handle(async (req, res) => {
-        const locations = await Location.find().sort({ name: 1 })
-        res.json(await attachCounts(locations))
+        const camps = await Camp.find(scope(req, '_id')).select('locationId')
+        const locations = await Location.find(req.user.role === 'admin' ? {} : { _id: { $in: camps.map(c => c.locationId) } }).sort({ name: 1 })
+        res.json(await attachCounts(locations, req))
     }),
 )
 
@@ -49,7 +51,7 @@ router.get(
     handle(async (req, res) => {
         const location = await Location.findById(req.params.id)
         if (!location) throw new HttpError(404, 'Location not found')
-        const [withCounts] = await attachCounts([location])
+        const [withCounts] = await attachCounts([location], req)
         res.json(withCounts)
     }),
 )
@@ -58,7 +60,7 @@ router.get(
 router.get(
     '/:id/camps',
     handle(async (req, res) => {
-        const camps = await Camp.find({ locationId: req.params.id })
+        const camps = await Camp.find({ ...scope(req, '_id'), locationId: req.params.id })
             .populate('locationId', 'name city address')
             .sort({ name: 1 })
         res.json(camps)
@@ -114,7 +116,7 @@ router.patch(
             await Camp.updateMany({ locationId: updated._id }, { location: updated.name })
         }
 
-        const [withCounts] = await attachCounts([updated])
+        const [withCounts] = await attachCounts([updated], req)
         res.json(withCounts)
     }),
 )

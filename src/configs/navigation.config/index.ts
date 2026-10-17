@@ -68,37 +68,37 @@ const navigationConfig: NavigationTree[] = [
     },
     {
         key: 'checkInOut',
-        path: '#',
-        isExternalLink: true,
+        path: '/check-in-out',
+
         title: 'Check-In / Check-Out',
         translateKey: 'nav.checkinCheckout',
         icon: 'login',
         type: NAV_ITEM_TYPE_ITEM,
-        disabled: true,
+
         authority: [],
         subMenu: [],
     },
     {
         key: 'recreationFacilities',
-        path: '#',
-        isExternalLink: true,
-        title: 'Recreation Facilities',
+        path: '/facilities',
+
+        title: 'Facilities',
         translateKey: 'nav.facilities',
         icon: 'activity',
         type: NAV_ITEM_TYPE_ITEM,
-        disabled: true,
+
         authority: [],
         subMenu: [],
     },
     {
         key: 'reports',
-        path: '#',
-        isExternalLink: true,
+        path: '/reports',
+
         title: 'Reports',
         translateKey: 'nav.reports',
         icon: 'barChart',
         type: NAV_ITEM_TYPE_ITEM,
-        disabled: true,
+
         authority: [],
         subMenu: [],
     },
@@ -118,19 +118,19 @@ const navigationConfig: NavigationTree[] = [
                 translateKey: 'nav.adminPanel',
                 icon: 'shieldLock',
                 type: NAV_ITEM_TYPE_ITEM,
-                authority: [],
+                authority: ['admin'],
                 subMenu: [],
                 action: 'toggleAdminPanel',
             },
             {
                 key: 'roleAccessManagement',
-                path: '#',
-                isExternalLink: true,
+                path: '/settings-roles',
+
                 title: 'Settings & Roles',
                 translateKey: 'nav.settingsRoles',
                 icon: 'settings',
                 type: NAV_ITEM_TYPE_ITEM,
-                disabled: true,
+
                 authority: ['admin'], // restrict to admin only
                 subMenu: [],
             },

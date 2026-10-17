@@ -10,7 +10,10 @@
     "lint:fix": "npm run lint -- --fix",
     "prettier": "npx prettier src --check",
     "prettier:fix": "npm run prettier -- --write",
-    "format": "npm run prettier:fix && npm run lint:fix"
+    "format": "npm run prettier:fix && npm run lint:fix",
+    "test": "node --test tests/dashboard.test.cjs tests/features.test.cjs",
+    "test:ui": "node tests/browser-smoke.cjs",
+    "preview:features": "node tests/support/preview.cjs"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.2",
@@ -63,6 +66,7 @@
     "yup": "^1.6.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@rollup/plugin-typescript": "^12.1.4",
     "@tailwindcss/postcss": "^4.0.0",
     "@tailwindcss/typography": "^0.5.9",
@@ -94,6 +98,7 @@
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.1",
+    "mongodb-memory-server": "^11.3.0",
     "postcss": "^8.4.21",
     "postcss-cli": "^11.0.0",
     "postcss-nesting": "^12.0.2",

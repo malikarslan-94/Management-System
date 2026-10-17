@@ -1,3 +1,4 @@
+import { getAccessToken } from './authToken'
 export interface OccupantDetails {
   _id: string
   firstName: string
@@ -65,7 +66,7 @@ export const assignRoom = async (
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        Authorization: `Bearer ${getAccessToken()}`,
       },
       body: JSON.stringify(payload),
     })
@@ -96,7 +97,7 @@ export const checkoutRoom = async (
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          Authorization: `Bearer ${getAccessToken()}`,
         },
         body: JSON.stringify({
           checkOutTime: payload.checkOutTime || new Date().toISOString(),
@@ -160,7 +161,7 @@ export const getRoomAssignments = async (
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        Authorization: `Bearer ${getAccessToken()}`,
       },
     })
 

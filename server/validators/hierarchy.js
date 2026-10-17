@@ -27,7 +27,7 @@ function handle(fn) {
         try {
             await fn(req, res, next)
         } catch (err) {
-            if (err instanceof HttpError) {
+            if (err instanceof HttpError || (err.status >= 400 && err.status < 600)) {
                 return res.status(err.status).json({ message: err.message })
             }
             if (err.code === 11000) {
@@ -40,7 +40,7 @@ function handle(fn) {
                 return res.status(400).json({ message: `Invalid ${err.path}: ${err.value}` })
             }
             console.error(err)
-            return res.status(500).json({ message: err.message })
+            return next(err)
         }
     }
 }

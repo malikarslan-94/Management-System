@@ -1,5 +1,4 @@
 import { PropsWithChildren } from 'react'
-import { Navigate } from 'react-router-dom'
 import useAuthority from '@/utils/hooks/useAuthority'
 
 type AuthorityGuardProps = PropsWithChildren<{
@@ -12,7 +11,21 @@ const AuthorityGuard = (props: AuthorityGuardProps) => {
 
     const roleMatched = useAuthority(userAuthority, authority)
 
-    return <>{roleMatched ? children : <Navigate to="/access-denied" />}</>
+    return (
+        <>
+            {roleMatched ? (
+                children
+            ) : (
+                <div className="p-8">
+                    <h3>Access restricted</h3>
+                    <p className="mt-3">
+                        Your role does not allow this page. Contact your
+                        administrator.
+                    </p>
+                </div>
+            )}
+        </>
+    )
 }
 
 export default AuthorityGuard

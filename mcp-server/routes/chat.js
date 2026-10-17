@@ -1,5 +1,21 @@
 const express = require('express')
 const router = express.Router()
+const axios = require('axios')
+const { createHash } = require('crypto')
+router.use(async (req, res, next) => {
+    const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1] || req.body?.authToken
+    if (typeof token !== 'string' || !token) return res.status(401).json({ success: false, message: 'Please sign in to use AI chat.' })
+    try {
+        const { data } = await axios.get(`${process.env.BACKEND_API_URL || 'http://localhost:3001'}/api/me`, { headers: { Authorization: `Bearer ${token}` }, timeout: 10000 })
+        if (data.user.mustChangePassword) return res.status(403).json({ success: false, message: 'Change your temporary password first.' })
+        req.authToken = token
+        req.memoryKey = sessionId => `${data.user.id}:${createHash('sha256').update(token).digest('hex')}:${sessionId}`
+        next()
+    } catch (error) {
+        const status = error.response?.status === 401 ? 401 : 503
+        res.status(status).json({ success: false, message: status === 401 ? 'Your session has expired. Please sign in again.' : 'Account verification is unavailable. Please try again.' })
+    }
+})
 
 const aiService = require('../services/aiService')
 const apiDiscovery = require('../services/apiDiscovery')
@@ -15,7 +31,8 @@ router.post('/', async (req, res) => {
 
     try {
         // Extract and sanitize input
-        const { message, sessionId: providedSessionId, authToken } = req.body
+        const { message, sessionId: providedSessionId } = req.body
+        const authToken = req.authToken
 
         if (!message || typeof message !== 'string') {
             return res.status(400).json({
@@ -40,14 +57,14 @@ router.post('/', async (req, res) => {
         }
 
         // Get conversation history
-        const history = conversationMemory.getHistory(sessionId)
+        const history = conversationMemory.getHistory(req.memoryKey(sessionId))
         const conversationContext = history.map((msg) => ({
             role: msg.role,
             content: msg.content,
         }))
 
         // Add user message to memory
-        conversationMemory.addMessage(sessionId, 'user', sanitizedMessage)
+        conversationMemory.addMessage(req.memoryKey(sessionId), 'user', sanitizedMessage)
 
         console.log('[MCP] received:', sanitizedMessage.slice(0, 60))
         console.log('[MCP] Step 1: analyze intent')
@@ -78,7 +95,7 @@ router.post('/', async (req, res) => {
                 "- Managing room assignments\n\n" +
                 "Could you please rephrase your question?"
 
-            conversationMemory.addMessage(sessionId, 'assistant', fallbackMessage)
+            conversationMemory.addMessage(req.memoryKey(sessionId), 'assistant', fallbackMessage)
             return res.json({
                 success: true,
                 message: fallbackMessage,
@@ -97,7 +114,7 @@ router.post('/', async (req, res) => {
                 "I can help you with employees, camps, rooms, and assignments. " +
                 "What would you like to know?"
 
-            conversationMemory.addMessage(sessionId, 'assistant', generalResponse)
+            conversationMemory.addMessage(req.memoryKey(sessionId), 'assistant', generalResponse)
             return res.json({
                 success: true,
                 message: generalResponse,
@@ -120,7 +137,7 @@ router.post('/', async (req, res) => {
                 "I couldn't find the right information to answer your question. " +
                 "Please try rephrasing it or ask about employees, camps, or rooms."
 
-            conversationMemory.addMessage(sessionId, 'assistant', errorMessage)
+            conversationMemory.addMessage(req.memoryKey(sessionId), 'assistant', errorMessage)
             return res.json({
                 success: false,
                 message: errorMessage,
@@ -141,7 +158,7 @@ router.post('/', async (req, res) => {
                 apiResult.error ||
                 "I couldn't retrieve the information you requested. Please try again."
 
-            conversationMemory.addMessage(sessionId, 'assistant', errorMessage)
+            conversationMemory.addMessage(req.memoryKey(sessionId), 'assistant', errorMessage)
             return res.json({
                 success: false,
                 message: errorMessage,
@@ -168,7 +185,7 @@ router.post('/', async (req, res) => {
             )
         }
 
-        conversationMemory.addMessage(sessionId, 'assistant', formattedMessage)
+        conversationMemory.addMessage(req.memoryKey(sessionId), 'assistant', formattedMessage)
         const totalDuration = Date.now() - startTime
         console.log('[MCP] Step 6: done, response sent')
         return res.json({
@@ -205,7 +222,7 @@ router.get('/session/:sessionId', (req, res) => {
         })
     }
 
-    const history = conversationMemory.getHistory(sessionId)
+    const history = conversationMemory.getHistory(req.memoryKey(sessionId))
 
     return res.json({
         success: true,
@@ -228,7 +245,7 @@ router.delete('/session/:sessionId', (req, res) => {
         })
     }
 
-    conversationMemory.clearSession(sessionId)
+    conversationMemory.clearSession(req.memoryKey(sessionId))
 
     return res.json({
         success: true,

@@ -1,3 +1,4 @@
+const { scope } = require('../lib/access')
 const express = require('express')
 const mongoose = require('mongoose')
 const router = express.Router()
@@ -88,7 +89,7 @@ async function atomically(work, compensate) {
 router.get(
     '/',
     handle(async (req, res) => {
-        const filter = {}
+        const filter = { ...scope(req, '_id') }
         if (req.query.locationId) filter.locationId = req.query.locationId
 
         const camps = await Camp.find(filter).populate('locationId', 'name city address').sort({ name: 1 })

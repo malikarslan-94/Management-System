@@ -28,18 +28,11 @@ const EmployeeForm = ({
     // Filter camps by selected location
     const availableCamps = formData.location
         ? camps.filter(
-              (camp) => camp.location === formData.location,
+              (camp) =>
+                  (camp.location || camp.locationId?.name) ===
+                  formData.location,
           )
-        : []
-
-    // Filter rooms by selected camp
-    const availableRooms = formData.campId
-        ? rooms.filter(
-              (room) =>
-                  room.camp === formData.campId ||
-                  room.camp?._id === formData.campId,
-          )
-        : []
+        : camps
 
     return (
         <FormContainer layout="vertical" size="sm">
@@ -260,6 +253,7 @@ const EmployeeForm = ({
 
             <FormItem label="Camp">
                 <Select
+                    aria-label="Resident camp"
                     value={
                         availableCamps
                             .map((c) => ({ value: c._id, label: c.name }))
@@ -281,60 +275,17 @@ const EmployeeForm = ({
                         value: c._id,
                         label: c.name,
                     }))}
-                    placeholder={
-                        formData.location
-                            ? 'Select a camp (optional)'
-                            : 'Select a location first'
-                    }
+                    placeholder="Choose a camp"
                     classNamePrefix="react-select"
                     isClearable
-                    isDisabled={!formData.location}
                 />
-                {!formData.location && (
-                    <div className="text-xs text-gray-500 mt-1">
-                        Please select a location first to assign a camp
-                    </div>
-                )}
             </FormItem>
 
-            <FormItem label="Current Room">
-                <Select
-                    value={
-                        availableRooms
-                            .map((r) => ({
-                                value: r._id,
-                                label: `${r.roomNumber} (${r.type})`,
-                            }))
-                            .find(
-                                (opt) => opt.value === formData.currentRoomId,
-                            ) || null
-                    }
-                    onChange={(selected) =>
-                        handleSelectChange('currentRoomId')({
-                            target: {
-                                value: selected ? selected.value : null,
-                            },
-                        })
-                    }
-                    options={availableRooms.map((r) => ({
-                        value: r._id,
-                        label: `${r.roomNumber} (${r.type})`,
-                    }))}
-                    placeholder={
-                        formData.campId
-                            ? 'Select a room (optional)'
-                            : 'Select a camp first'
-                    }
-                    classNamePrefix="react-select"
-                    isClearable
-                    isDisabled={!formData.campId}
-                />
-                {!formData.campId && (
-                    <div className="text-xs text-gray-500 mt-1">
-                        Please select a camp first to assign a room
-                    </div>
-                )}
-            </FormItem>
+            <div className="p-3 rounded-lg bg-blue-50 text-blue-800 text-sm">
+                Manage room allocation through Check-In / Check-Out after saving
+                this resident. Complete an active stay before changing their
+                camp or status.
+            </div>
         </FormContainer>
     )
 }

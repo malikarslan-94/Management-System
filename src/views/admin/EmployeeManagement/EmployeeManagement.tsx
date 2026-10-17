@@ -1,3 +1,4 @@
+import { useAccess, errorText } from '@/components/shared/AccessProvider'
 import EmployeeForm from '@/components/admin-dashboard/EmployeeForm'
 import DataTable from '@/components/shared/DataTable'
 import Statistic from '@/components/shared/Statistic/Statistic'
@@ -32,6 +33,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 type TabType = 'all' | 'visitors'
 
 const EmployeeManagement = () => {
+    const { can } = useAccess()
+    const [operationError, setOperationError] = useState('')
     const [searchParams, setSearchParams] = useSearchParams()
     const navigate = useNavigate()
     
@@ -51,7 +54,7 @@ const EmployeeManagement = () => {
     const [isEditing, setIsEditing] = useState(false)
     const [formData, setFormData] = useState<any>({})
     const [errors, setErrors] = useState<Record<string, string>>({})
-    const [pageIndex, setPageIndex] = useState(0)
+    const [pageIndex, setPageIndex] = useState(1)
     const [pageSize, setPageSize] = useState(10)
     const [isSavingEmployee, setIsSavingEmployee] = useState(false)
 
@@ -61,7 +64,7 @@ const EmployeeManagement = () => {
         campId: filters.campId || undefined,
         department: filters.department || undefined,
         status: filters.status || undefined,
-        page: pageIndex + 1,
+        page: pageIndex,
         limit: pageSize,
     }), [
         activeTab, 
@@ -90,9 +93,8 @@ const EmployeeManagement = () => {
     const locations = useMemo(() => {
         const locationSet = new Set<string>()
         camps?.forEach((camp) => {
-            if (camp.location) {
-                locationSet.add(camp.location)
-            }
+            const label = camp.location || (typeof camp.locationId === 'object' ? camp.locationId?.name : '')
+            if (label) locationSet.add(label)
         })
         return Array.from(locationSet).sort()
     }, [camps])
@@ -109,7 +111,7 @@ const EmployeeManagement = () => {
         const action = searchParams.get('action')
         const type = searchParams.get('type')
         
-        if (action === 'add') {
+        if (action === 'add' && can('residents')) {
             setIsEditing(false)
             setErrors({})
             
@@ -153,43 +155,9 @@ const EmployeeManagement = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const { employeeApi } = await import('@/services/api')
-                // Fetch all employees for stats (no filters, limit to reasonable number)
-                const response = await employeeApi.getAll({
-                    page: 1,
-                    limit: 1000,
-                })
-                const allEmployees = response?.data?.data || []
-
-                const visitors = allEmployees.filter(
-                    (e: Employee) => e.employeeType === 'Visitor',
-                )
-                const assignedRooms = allEmployees.filter(
-                    (e: Employee) => e.currentRoomId,
-                ).length
-                const inactiveEmployees = allEmployees.filter(
-                    (e: Employee) => e.status === 'Inactive',
-                ).length
-
-                // Visitors today
-                const today = new Date()
-                today.setHours(0, 0, 0, 0)
-                const visitorsToday = visitors.filter((visitor: Employee) => {
-                    if (visitor.status !== 'Active') return false
-                    const visitorDate = visitor.createdAt
-                        ? new Date(visitor.createdAt)
-                        : null
-                    if (!visitorDate) return false
-                    visitorDate.setHours(0, 0, 0, 0)
-                    return visitorDate.getTime() === today.getTime()
-                }).length
-
-                setStatsData({
-                    totalEmployees: allEmployees.length,
-                    visitorsToday,
-                    assignedRooms,
-                    inactiveEmployees,
-                })
+                const { default: api } = await import('@/services/api')
+                const response = await api.get('/api/employees/summary')
+                setStatsData(response.data)
             } catch (err) {
                 console.error('Error fetching stats:', err)
             }
@@ -210,7 +178,7 @@ const EmployeeManagement = () => {
             setFilters((prev) => ({ ...prev, employeeType: '' }))
         }
         // Reset to first page when filters change
-        setPageIndex(0)
+        setPageIndex(1)
     }, [activeTab])
 
     // Filter and search employees - Note: Most filtering is done server-side via API
@@ -359,13 +327,13 @@ const EmployeeManagement = () => {
                                 size="sm"
                                 variant="plain"
                                 icon={<HiOutlinePencil />}
-                                onClick={() => handleEdit(emp)}
+                                disabled={!can('residents')} onClick={() => handleEdit(emp)}
                             />
                             <Button
                                 size="sm"
                                 variant="plain"
                                 icon={<HiOutlineTrash />}
-                                onClick={() => handleDelete(emp._id!)}
+                                disabled={!can('residents')} onClick={() => handleDelete(emp._id!)}
                                 color="red-600"
                             />
                         </div>
@@ -515,12 +483,6 @@ const EmployeeManagement = () => {
                 typeof formData.campId === 'object' && formData.campId
                     ? formData.campId._id || formData.campId
                     : formData.campId?.toString().trim() || undefined
-            const currentRoomIdValue =
-                typeof formData.currentRoomId === 'object' &&
-                formData.currentRoomId
-                    ? formData.currentRoomId._id || formData.currentRoomId
-                    : formData.currentRoomId?.toString().trim() || null
-
             const employeeData = {
                 firstName: formData.firstName,
                 lastName: formData.lastName,
@@ -534,7 +496,6 @@ const EmployeeManagement = () => {
                 designation: formData.designation?.trim() || undefined,
                 employeeType: formData.employeeType || 'Permanent',
                 campId: campIdValue,
-                currentRoomId: currentRoomIdValue,
                 status: formData.status || 'Active',
             }
 
@@ -556,7 +517,7 @@ const EmployeeManagement = () => {
             setErrors({})
             fetchEmployees()
         } catch (error) {
-            console.error('Error saving employee:', error)
+            setOperationError(errorText(error))
         } finally {
             setIsSavingEmployee(false)
         }
@@ -567,7 +528,7 @@ const EmployeeManagement = () => {
 
     const handleFilterChange = (name: string, value: string) => {
         setFilters((prev) => ({ ...prev, [name]: value }))
-        setPageIndex(0) // Reset to first page on filter change
+        setPageIndex(1) // Reset to first page on filter change
     }
 
     const handleEndVisit = async (employeeId: string) => {
@@ -581,11 +542,10 @@ const EmployeeManagement = () => {
         try {
             await updateEmployee(employeeId, {
                 status: 'Inactive',
-                currentRoomId: null,
             })
             fetchEmployees()
         } catch (error) {
-            console.error('Error ending visit:', error)
+            setOperationError(errorText(error))
         }
     }
 
@@ -600,6 +560,7 @@ const EmployeeManagement = () => {
 
     return (
         <div className="space-y-6">
+            {operationError && <p role="alert" className="p-3 text-red-700 bg-red-50">{operationError}</p>}
             {/* Statistics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Statistic
@@ -642,7 +603,7 @@ const EmployeeManagement = () => {
                     <Button
                         variant="solid"
                         icon={<HiOutlineUserAdd />}
-                        onClick={handleAdd}
+                        disabled={!can('residents')} onClick={handleAdd}
                     >
                         Add Employee
                     </Button>
@@ -692,7 +653,7 @@ const EmployeeManagement = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Employee Type
                             </label>
-                            <Select
+                            <Select<{ value: string; label: string }>
                                 value={
                                     filters.employeeType
                                         ? {
@@ -723,12 +684,12 @@ const EmployeeManagement = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Camp
                             </label>
-                            <Select
+                            <Select<{ value: string; label: string }>
                                 value={
                                     filters.campId
                                         ? camps
                                               .map((c) => ({
-                                                  value: c._id,
+                                                  value: c._id || '',
                                                   label: c.name,
                                               }))
                                               .find(
@@ -747,7 +708,7 @@ const EmployeeManagement = () => {
                                 options={[
                                     { value: '', label: 'All Camps' },
                                     ...camps.map((c) => ({
-                                        value: c._id,
+                                        value: c._id || '',
                                         label: c.name,
                                     })),
                                 ]}
@@ -761,7 +722,7 @@ const EmployeeManagement = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Department
                             </label>
-                            <Select
+                            <Select<{ value: string; label: string }>
                                 value={
                                     filters.department
                                         ? {
@@ -793,7 +754,7 @@ const EmployeeManagement = () => {
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                 Status
                             </label>
-                            <Select
+                            <Select<{ value: string; label: string }>
                                 value={
                                     filters.status
                                         ? {
@@ -857,7 +818,7 @@ const EmployeeManagement = () => {
                         onPaginationChange={(page) => setPageIndex(page)}
                         onSelectChange={(size) => {
                             setPageSize(size)
-                            setPageIndex(0)
+                            setPageIndex(1)
                         }}
                     />
                 </div>
@@ -889,6 +850,7 @@ const EmployeeManagement = () => {
                     
                     {/* Scrollable Form Content */}
                     <div className="flex-1 overflow-y-auto p-6">
+                        {operationError && <p role="alert" className="text-red-700 mb-3">{operationError}</p>}
                         <EmployeeForm
                             formData={formData}
                             errors={errors}
@@ -918,7 +880,7 @@ const EmployeeManagement = () => {
                             variant="solid"
                             onClick={handleSubmit}
                             loading={isSavingEmployee}
-                            disabled={isSavingEmployee}
+                            disabled={isSavingEmployee || !can('residents')}
                         >
                             {isEditing ? 'Update' : 'Create'} Employee
                         </Button>
@@ -1179,7 +1141,7 @@ const EmployeeManagement = () => {
 
                         {/* Visitor-specific actions */}
                         {selectedEmployee.employeeType === 'Visitor' &&
-                            selectedEmployee.status === 'Active' && (
+                            selectedEmployee.status === 'Active' && can('residents') && (
                                 <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
                                     <Button
                                         variant="solid"

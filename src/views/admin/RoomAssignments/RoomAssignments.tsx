@@ -1,3 +1,4 @@
+import { useAccess } from '@/components/shared/AccessProvider'
 import DataTable from '@/components/shared/DataTable'
 import Statistic from '@/components/shared/Statistic/Statistic'
 import Badge from '@/components/ui/Badge'
@@ -36,6 +37,7 @@ import {
 type TabType = 'all' | 'active' | 'completed'
 
 const RoomAssignments = () => {
+    const { can } = useAccess()
     const [searchParams, setSearchParams] = useSearchParams()
     const navigate = useNavigate()
 
@@ -324,7 +326,7 @@ const RoomAssignments = () => {
                                     setIsDrawerOpen(true)
                                 }}
                             />
-                            {assignment.status === 'active' && (
+                            {assignment.status === 'active' && can('stays') && (
                                 <Button
                                     size="sm"
                                     variant="plain"
@@ -424,7 +426,7 @@ const RoomAssignments = () => {
     const handleCheckout = async (assignmentId: string) => {
         if (
             !window.confirm(
-                'Are you sure you want to checkout this room assignment?',
+                'Check out this resident? The room will be marked Cleaning. A room under maintenance keeps that status.',
             )
         )
             return
@@ -969,7 +971,7 @@ const RoomAssignments = () => {
                             onClick={handleAssignRoom}
                             loading={assignSubmitting}
                             disabled={
-                                assignSubmitting ||
+                                !can('stays') || assignSubmitting ||
                                 getAvailableOccupants().length === 0 ||
                                 getAvailableRooms().length === 0
                             }
@@ -1151,7 +1153,7 @@ const RoomAssignments = () => {
                         </div>
 
                         {/* Actions */}
-                        {selectedAssignment.status === 'active' && (
+                        {selectedAssignment.status === 'active' && can('stays') && (
                             <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
                                 <Button
                                     variant="solid"

@@ -1,3 +1,4 @@
+import AccessProvider from '@/components/shared/AccessProvider'
 import appConfig from '@/configs/app.config'
 import { REDIRECT_URL_KEY } from '@/constants/app.constant'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
@@ -19,7 +20,11 @@ const ProtectedRoute = () => {
         )
     }
 
-    return <Outlet />
+    return (
+        <AccessProvider>
+            <Outlet />
+        </AccessProvider>
+    )
 }
 
 export default ProtectedRoute

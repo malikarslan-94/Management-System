@@ -1,3 +1,4 @@
+const { scope } = require('../lib/access')
 const express = require('express')
 const router = express.Router()
 const Building = require('../models/Building')
@@ -39,7 +40,7 @@ async function attachRoomCounts(buildings) {
 router.get(
     '/',
     handle(async (req, res) => {
-        const filter = {}
+        const filter = { ...scope(req, 'campId') }
         if (req.query.campId) filter.campId = req.query.campId
 
         const buildings = await Building.find(filter).populate('campId', 'name location locationId').sort({ name: 1 })

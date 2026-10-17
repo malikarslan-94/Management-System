@@ -42,6 +42,7 @@ const HeaderActionsEnd = () => {
 }
 
 const ModernLayout = () => {
+    const isAdmin = useAppSelector(state => state.auth.user.authority?.includes('admin'))
     return (
         <>
             <div className="app-layout-modern flex flex-auto flex-col">
@@ -57,7 +58,7 @@ const ModernLayout = () => {
                     </div>
                 </div>
             </div>
-            <AdminDashboard />
+            {isAdmin && <AdminDashboard />}
         </>
     )
 }
